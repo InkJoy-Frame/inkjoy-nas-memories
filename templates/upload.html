@@ -1,0 +1,374 @@
+{% extends 'base.html' %}
+{% block title %}Upload - InkJoy Manager{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css">
+{% endblock %}
+
+{% block content %}
+<h4 class="fw-bold mb-4">
+  <i class="bi bi-cloud-upload me-2 text-primary"></i>
+  <span data-i18n="up.title">Upload Image to Device</span>
+</h4>
+
+<div class="row g-3" style="min-height:600px;">
+
+  <!-- ① Source panel -->
+  <div class="col-md-3">
+    <div class="card h-100 d-flex flex-column">
+      <!-- Tab header: Image Library first, Local File second -->
+      <div class="card-header p-0">
+        <ul class="nav nav-tabs card-header-tabs border-0" id="srcTabs">
+          <li class="nav-item flex-fill text-center">
+            <button class="nav-link active w-100 rounded-0 py-2" id="tab-server" onclick="switchTab('server')">
+              <i class="bi bi-hdd-network me-1"></i>
+              <span data-i18n="up.tab.server">Image Library</span>
+            </button>
+          </li>
+          <li class="nav-item flex-fill text-center">
+            <button class="nav-link w-100 rounded-0 py-2" id="tab-local" onclick="switchTab('local')">
+              <i class="bi bi-laptop me-1"></i>
+              <span data-i18n="up.tab.local">Local File</span>
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Image Library panel (default) -->
+      <div id="panel-server" class="d-flex flex-column flex-grow-1">
+        <div class="px-2 pt-2 pb-1 border-bottom" style="background:#f0f7f4;">
+          <div class="input-group input-group-sm">
+            <span class="input-group-text bg-white border-end-0 px-2">
+              <i class="bi bi-folder2 text-muted" style="font-size:.75rem;"></i>
+            </span>
+            <input type="text" class="form-control border-start-0 ps-1"
+                   id="pathInput" data-i18n-ph="up.path.ph"
+                   placeholder="Type path and press Enter…"
+                   style="font-size:.78rem;font-family:monospace;"
+                   onkeydown="if(event.key==='Enter') navigateTo(this.value.trim())">
+            <button class="btn btn-outline-secondary px-2"
+                    onclick="navigateTo(document.getElementById('pathInput').value.trim())">
+              <i class="bi bi-arrow-right-short"></i>
+            </button>
+          </div>
+        </div>
+        <nav class="px-3 py-1 border-bottom" style="background:#f4f9f7;min-height:30px;">
+          <ol class="breadcrumb mb-0 small" id="fileBreadcrumb"></ol>
+        </nav>
+        <div id="fileList" class="file-list flex-grow-1"></div>
+      </div>
+
+      <!-- Local File panel -->
+      <div id="panel-local" class="d-flex flex-column flex-grow-1 p-3 gap-3 d-none">
+        <div id="dropZone" class="drop-zone flex-grow-1 d-flex flex-column align-items-center justify-content-center"
+             onclick="document.getElementById('localFileInput').click()"
+             ondragover="event.preventDefault();this.classList.add('drag-over')"
+             ondragleave="this.classList.remove('drag-over')"
+             ondrop="handleDrop(event)">
+          <i class="bi bi-folder2-open display-4 mb-2" style="color:var(--ink-mid);opacity:.6;"></i>
+          <div class="fw-semibold" style="color:var(--ink);" data-i18n="up.drop.title">Click to Select Image</div>
+          <div class="text-muted small mt-1" data-i18n="up.drop.sub">Or drag an image here</div>
+          <div class="text-muted x-small mt-2" data-i18n="up.drop.formats">JPG / PNG / WEBP / BMP</div>
+        </div>
+        <input type="file" id="localFileInput" accept="image/*" class="d-none"
+               onchange="loadLocalFile(this.files[0])">
+        <div id="localFileName" class="text-center small text-muted d-none">
+          <i class="bi bi-file-image me-1"></i><span id="localFileNameText"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ② Crop area -->
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header d-flex align-items-center justify-content-between py-2">
+        <span class="fw-semibold">
+          <i class="bi bi-crop me-1"></i>
+          <span data-i18n="up.crop.title">Crop</span>
+        </span>
+        <div id="cropControls" class="d-none d-flex gap-1">
+          <button class="btn btn-sm btn-outline-secondary" onclick="cropper.rotate(-90)"
+                  data-i18n-title="up.rotate.ccw" title="Rotate 90° CCW">
+            <i class="bi bi-arrow-counterclockwise"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" onclick="cropper.rotate(90)"
+                  data-i18n-title="up.rotate.cw" title="Rotate 90° CW">
+            <i class="bi bi-arrow-clockwise"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" onclick="cropper.reset()"
+                  data-i18n-title="up.reset" title="Reset">
+            <i class="bi bi-arrow-repeat"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" onclick="toggleAspectLock()"
+                  id="lockBtn" data-i18n-title="up.lock" title="Lock aspect ratio">
+            <i class="bi bi-lock-fill"></i>
+          </button>
+        </div>
+      </div>
+      <div class="card-body d-flex align-items-center justify-content-center p-3"
+           style="min-height:460px;background:#111c17;">
+        <div id="cropPlaceholder" class="text-center">
+          <i class="bi bi-image display-1" style="opacity:.2;color:#fff;"></i>
+          <p class="mt-3 small" style="color:#6b8c7a;">
+            <span data-i18n="up.crop.ph1">Select an image from the left panel</span><br>
+            <span style="opacity:.6;" data-i18n="up.crop.ph2">Drag to adjust crop box · scroll to zoom</span>
+          </p>
+        </div>
+        <div id="cropWrapper" class="d-none w-100" style="max-height:460px;overflow:hidden;">
+          <img id="cropImg" src="" alt="crop" style="max-width:100%;display:block;">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ③ Device & Upload -->
+  <div class="col-md-3 d-flex flex-column gap-3">
+    <div class="card">
+      <div class="card-header py-2 fw-semibold">
+        <i class="bi bi-display me-1"></i>
+        <span data-i18n="up.device.title">Target Device</span>
+      </div>
+      <div class="card-body">
+        <div id="deviceSelector">
+          <div class="d-flex align-items-center gap-2 text-muted">
+            <div class="spinner-border spinner-border-sm"></div>
+            <span data-i18n="up.device.loading">Loading…</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card d-none" id="deviceInfoCard">
+      <div class="card-header py-2 fw-semibold">
+        <i class="bi bi-info-circle me-1"></i>
+        <span data-i18n="up.info.title">Device Info</span>
+      </div>
+      <div class="card-body py-2" id="deviceInfoBody"></div>
+    </div>
+
+    <div class="card mt-auto">
+      <div class="card-body">
+        <button id="uploadBtn" class="btn btn-primary w-100 py-2 fw-semibold" disabled onclick="doUpload()">
+          <i class="bi bi-cloud-upload me-1"></i>
+          <span data-i18n="up.btn.upload">Upload to Device</span>
+        </button>
+        <div id="uploadMsg" class="mt-2"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
+<script>
+let cropper = null, selectedDevice = null, aspectLocked = true, localObjectUrl = null;
+const urlP = new URLSearchParams(location.search);
+
+// ── Tab ──────────────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.getElementById('panel-server').classList.toggle('d-none', tab !== 'server');
+  document.getElementById('panel-local').classList.toggle('d-none', tab !== 'local');
+  document.getElementById('tab-server').classList.toggle('active', tab === 'server');
+  document.getElementById('tab-local').classList.toggle('active', tab === 'local');
+  if (tab === 'server' && !document.getElementById('fileList').innerHTML) navigateTo('');
+}
+
+// ── Local file ────────────────────────────────────────────────────────────────
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropZone').classList.remove('drag-over');
+  const file = e.dataTransfer.files?.[0];
+  if (file?.type.startsWith('image/')) loadLocalFile(file);
+}
+function loadLocalFile(file) {
+  if (!file) return;
+  document.getElementById('localFileNameText').textContent = file.name;
+  document.getElementById('localFileName').classList.remove('d-none');
+  if (localObjectUrl) URL.revokeObjectURL(localObjectUrl);
+  localObjectUrl = URL.createObjectURL(file);
+  loadIntoCropper(localObjectUrl);
+}
+
+// ── Devices ───────────────────────────────────────────────────────────────────
+async function loadDevices() {
+  try {
+    const resp = await fetch('/api/devices');
+    const data = await resp.json();
+    const sel = document.getElementById('deviceSelector');
+    if (!data.success || !data.devices?.length) {
+      sel.innerHTML = `<p class="text-danger small mb-0">${t('up.device.none')}</p>`;
+      return;
+    }
+    const cacheKey = `inkjoy_devices_${window.INKJOY_ACCOUNT_ID || 0}`;
+    localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data: data.devices }));
+    let html = `<select class="form-select form-select-sm" id="devSelect" onchange="onDevChange(this)">`;
+    html += `<option value="">${t('up.device.select')}</option>`;
+    data.devices.forEach(d => {
+      const s = urlP.get('device_id') === d.deviceId ? 'selected' : '';
+      html += `<option value="${d.deviceId}"
+        data-name="${d.deviceName || d.deviceId}"
+        data-w="${d.resolution?.width || ''}"
+        data-h="${d.resolution?.height || ''}" ${s}>
+        ${d.deviceName || d.deviceId} ${d.status === 'ONLINE' ? '🟢' : '⚫'}
+      </option>`;
+    });
+    html += '</select>';
+    sel.innerHTML = html;
+    if (urlP.get('device_id')) onDevChange(document.getElementById('devSelect'));
+  } catch (e) {
+    document.getElementById('deviceSelector').innerHTML =
+      `<p class="text-danger small mb-0">${e.message}</p>`;
+  }
+}
+
+function onDevChange(sel) {
+  const opt = sel.options[sel.selectedIndex];
+  if (!opt?.value) {
+    selectedDevice = null;
+    document.getElementById('deviceInfoCard').classList.add('d-none');
+    refreshAspect(); checkReady(); return;
+  }
+  selectedDevice = { deviceId: opt.value, name: opt.dataset.name,
+    w: parseInt(opt.dataset.w) || null, h: parseInt(opt.dataset.h) || null };
+  const body = document.getElementById('deviceInfoBody');
+  if (selectedDevice.w && selectedDevice.h) {
+    body.innerHTML = `
+      <div class="d-flex justify-content-between small">
+        <span class="text-muted">${t('up.info.res')}</span>
+        <span class="fw-semibold">${selectedDevice.w} × ${selectedDevice.h}</span>
+      </div>
+      <div class="d-flex justify-content-between small mt-1">
+        <span class="text-muted">${t('up.info.ratio')}</span>
+        <span>${(selectedDevice.w / selectedDevice.h).toFixed(3)}</span>
+      </div>`;
+    document.getElementById('deviceInfoCard').classList.remove('d-none');
+  }
+  refreshAspect(); checkReady();
+}
+function refreshAspect() {
+  if (!cropper) return;
+  cropper.setAspectRatio(aspectLocked && selectedDevice?.w && selectedDevice?.h
+    ? selectedDevice.w / selectedDevice.h : NaN);
+}
+function toggleAspectLock() {
+  aspectLocked = !aspectLocked;
+  document.getElementById('lockBtn').innerHTML = aspectLocked
+    ? '<i class="bi bi-lock-fill"></i>' : '<i class="bi bi-unlock-fill"></i>';
+  refreshAspect();
+}
+
+// ── Cropper ───────────────────────────────────────────────────────────────────
+function loadIntoCropper(src) {
+  if (cropper) { cropper.destroy(); cropper = null; }
+  document.getElementById('cropPlaceholder').classList.add('d-none');
+  document.getElementById('cropWrapper').classList.remove('d-none');
+  document.getElementById('cropControls').classList.remove('d-none');
+  const img = document.getElementById('cropImg');
+  img.src = src;
+  img.onload = () => {
+    cropper = new Cropper(img, {
+      viewMode: 1, dragMode: 'move', autoCropArea: 1,
+      restore: false, guides: true, center: true, highlight: false,
+      cropBoxMovable: true, cropBoxResizable: true, toggleDragModeOnDblclick: false,
+      aspectRatio: aspectLocked && selectedDevice?.w && selectedDevice?.h
+        ? selectedDevice.w / selectedDevice.h : NaN,
+    });
+    checkReady();
+  };
+}
+function checkReady() {
+  document.getElementById('uploadBtn').disabled = !(cropper && selectedDevice);
+}
+
+// ── Server browser ────────────────────────────────────────────────────────────
+async function navigateTo(path) {
+  path = (path || '').replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+  const resp = await fetch('/api/browse?path=' + encodeURIComponent(path));
+  const data = await resp.json();
+  if (!data.success) { alert(data.error); return; }
+  document.getElementById('pathInput').value = path;
+
+  const parts = path ? path.split('/').filter(Boolean) : [];
+  let bc = `<li class="breadcrumb-item"><a href="#" onclick="navigateTo('')"><i class="bi bi-house-fill"></i></a></li>`;
+  let built = '';
+  parts.forEach((p, i) => {
+    built += (built ? '/' : '') + p;
+    const bp = built;
+    bc += i === parts.length - 1
+      ? `<li class="breadcrumb-item active text-truncate" style="max-width:90px">${p}</li>`
+      : `<li class="breadcrumb-item"><a href="#" onclick="navigateTo('${bp}')">${p}</a></li>`;
+  });
+  document.getElementById('fileBreadcrumb').innerHTML = bc;
+
+  let html = '';
+  if (path) {
+    const parent = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '';
+    html += `<div class="file-item dir-item" onclick="navigateTo('${parent}')">
+      <i class="bi bi-arrow-up text-secondary me-2"></i>${t('up.parent')}</div>`;
+  }
+  data.items.forEach(item => {
+    if (item.type === 'dir') {
+      html += `<div class="file-item dir-item" onclick="navigateTo('${item.path}')">
+        <i class="bi bi-folder-fill text-warning me-2"></i>${item.name}</div>`;
+    } else {
+      const size = item.size > 1048576
+        ? (item.size / 1048576).toFixed(1) + ' MB'
+        : (item.size / 1024).toFixed(0) + ' KB';
+      html += `<div class="file-item img-item" onclick="selectServerImg('${item.path}', this)">
+        <img src="/api/image?path=${encodeURIComponent(item.path)}&thumb=true"
+             loading="lazy" onerror="this.style.display='none'">
+        <div class="img-meta">
+          <div class="img-name">${item.name}</div>
+          <div class="img-size text-muted">${size}</div>
+        </div>
+      </div>`;
+    }
+  });
+  if (!html) html = `<div class="p-3 text-center text-muted small">${t('up.empty.folder')}</div>`;
+  document.getElementById('fileList').innerHTML = html;
+}
+function selectServerImg(path, el) {
+  document.querySelectorAll('.img-item').forEach(e => e.classList.remove('selected'));
+  el.classList.add('selected');
+  loadIntoCropper('/api/image?path=' + encodeURIComponent(path));
+}
+
+// ── Upload ────────────────────────────────────────────────────────────────────
+async function doUpload() {
+  if (!cropper || !selectedDevice) return;
+  const btn = document.getElementById('uploadBtn');
+  const msg = document.getElementById('uploadMsg');
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>${t('up.btn.uploading')}`;
+  msg.innerHTML = '';
+  try {
+    const canvas = cropper.getCroppedCanvas({
+      width: selectedDevice.w || undefined, height: selectedDevice.h || undefined,
+      imageSmoothingQuality: 'high',
+    });
+    const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.95));
+    const fd = new FormData();
+    fd.append('file', blob, 'inkjoy.jpg');
+    fd.append('device_id', selectedDevice.deviceId);
+    const resp = await fetch('/api/upload', { method: 'POST', body: fd });
+    const data = await resp.json();
+    if (data.success) {
+      msg.innerHTML = `<div class="alert alert-success py-2 small mb-0">
+        <i class="bi bi-check-circle-fill me-1"></i>${t('up.ok')} → ${selectedDevice.name}</div>`;
+    } else {
+      msg.innerHTML = `<div class="alert alert-danger py-2 small mb-0">
+        <i class="bi bi-x-circle-fill me-1"></i>${data.error}</div>`;
+    }
+  } catch (e) {
+    msg.innerHTML = `<div class="alert alert-danger py-2 small mb-0">
+      <i class="bi bi-x-circle-fill me-1"></i>${e.message}</div>`;
+  }
+  btn.disabled = false;
+  btn.innerHTML = `<i class="bi bi-cloud-upload me-1"></i>${t('up.btn.upload')}`;
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+loadDevices();
+navigateTo('');
+</script>
+{% endblock %}

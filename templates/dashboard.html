@@ -1,0 +1,117 @@
+{% extends 'base.html' %}
+{% block title %}Devices - InkJoy Manager{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h4 class="mb-0 fw-bold">
+      <i class="bi bi-grid-1x2 me-2 text-primary"></i>
+      <span data-i18n="dash.title">My Devices</span>
+    </h4>
+    <small class="text-muted">{{ session.email }}
+      <span class="badge ms-1
+        {% if session.server_key == 'global' %}bg-primary{% else %}bg-danger{% endif %}">
+        {% if session.server_key == 'global' %}Global{% else %}China{% endif %}
+      </span>
+    </small>
+  </div>
+  <button class="btn btn-outline-secondary btn-sm" onclick="loadDevices()">
+    <i class="bi bi-arrow-clockwise me-1"></i>
+    <span data-i18n="dash.refresh">Refresh</span>
+  </button>
+</div>
+
+<div id="loadingDiv" class="text-center py-5">
+  <div class="spinner-border" style="color:var(--ink)"></div>
+  <p class="mt-2 text-muted" data-i18n="dash.loading">Loading devices…</p>
+</div>
+<div id="deviceGrid" class="row g-3 d-none"></div>
+<div id="emptyDiv" class="empty-state d-none">
+  <i class="bi bi-inbox display-3 text-muted"></i>
+  <p class="mt-3 text-muted" data-i18n="dash.empty">No devices bound</p>
+  <p class="text-muted small" data-i18n="dash.empty.hint">Please bind a device in the InkJoy App first</p>
+</div>
+<div id="errorDiv" class="d-none">
+  <div class="alert alert-danger">
+    <i class="bi bi-exclamation-triangle me-2"></i>
+    <span id="errorMsg"></span>
+    <button class="btn btn-sm btn-outline-danger ms-3" onclick="loadDevices()" data-i18n="dash.err.retry">Retry</button>
+  </div>
+</div>
+
+<script>
+async function loadDevices() {
+  document.getElementById('loadingDiv').classList.remove('d-none');
+  ['deviceGrid','emptyDiv','errorDiv'].forEach(id => document.getElementById(id).classList.add('d-none'));
+
+  try {
+    const resp = await fetch('/api/devices');
+    const data = await resp.json();
+    document.getElementById('loadingDiv').classList.add('d-none');
+
+    if (!data.success) {
+      document.getElementById('errorMsg').textContent = data.error || t('dash.empty');
+      document.getElementById('errorDiv').classList.remove('d-none');
+      return;
+    }
+    if (!data.devices?.length) {
+      document.getElementById('emptyDiv').classList.remove('d-none');
+      return;
+    }
+
+    // Cache devices for schedules page (isolated by account_id)
+    const cacheKey = `inkjoy_devices_${window.INKJOY_ACCOUNT_ID || 0}`;
+    localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data: data.devices }));
+
+    const grid = document.getElementById('deviceGrid');
+    grid.innerHTML = data.devices.map(d => {
+      const name = d.deviceName || d.deviceId;
+      const w = d.resolution?.width || 0;
+      const h = d.resolution?.height || 0;
+      const online = d.status === 'ONLINE';
+      const battery = d.currentStatus?.battery;
+      const wifi = d.currentStatus?.wifiName;
+      const params = `device_id=${d.deviceId}&device_name=${encodeURIComponent(name)}&width=${w}&height=${h}`;
+
+      return `
+      <div class="col-sm-6 col-lg-4 col-xl-3">
+        <div class="card device-card h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <h6 class="card-title mb-0 fw-bold">${name}</h6>
+              <span class="badge rounded-pill ${online ? 'bg-success' : 'bg-secondary'}">
+                ${online ? t('dash.online') : t('dash.offline')}
+              </span>
+            </div>
+            <p class="text-muted x-small mb-2 font-monospace">${d.deviceId}</p>
+            <div class="device-chips">
+              ${w && h ? `<span class="chip"><i class="bi bi-aspect-ratio"></i> ${w}×${h}</span>` : ''}
+              ${battery !== undefined ? `<span class="chip"><i class="bi bi-battery-half"></i> ${battery}%</span>` : ''}
+              ${wifi ? `<span class="chip"><i class="bi bi-wifi"></i> ${wifi}</span>` : ''}
+              ${d.currentStatus?.version ? `<span class="chip"><i class="bi bi-cpu"></i> v${d.currentStatus.version}</span>` : ''}
+            </div>
+          </div>
+          <div class="card-footer bg-transparent border-top-0 pt-0 pb-3 px-3">
+            <div class="d-grid gap-2">
+              <a href="/upload?${params}" class="btn btn-primary btn-sm">
+                <i class="bi bi-cloud-upload me-1"></i>${t('dash.btn.upload')}
+              </a>
+              <a href="/schedules?${params}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-clock-history me-1"></i>${t('dash.btn.sched')}
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+    grid.classList.remove('d-none');
+  } catch (err) {
+    document.getElementById('loadingDiv').classList.add('d-none');
+    document.getElementById('errorMsg').textContent = err.message;
+    document.getElementById('errorDiv').classList.remove('d-none');
+  }
+}
+
+loadDevices();
+</script>
+{% endblock %}

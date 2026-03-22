@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  inkjoy-manager:
+    image: inkjoy-manager:latest
+    build: .
+    container_name: inkjoy-manager
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./images:/images
+      - ./data:/data
+    restart: unless-stopped
+    environment:
+      - SECRET_KEY=change-me-to-a-long-random-string
+      - TZ=Asia/Shanghai
+      - IMAGES_DIR=/images
+      - DATA_DIR=/data

@@ -1,0 +1,299 @@
+/* ── Theme: Ink Green (墨绿) ─────────────────────────────────────────────── */
+:root {
+  --ink:        #1e4d3b;   /* deep ink green - primary */
+  --ink-dark:   #153729;   /* hover / darker */
+  --ink-light:  #d0ede0;   /* tint / badge bg */
+  --ink-mid:    #2d6a4f;   /* mid tone */
+  --ink-rgb:    30, 77, 59;
+
+  /* Bootstrap primary override */
+  --bs-primary:          var(--ink);
+  --bs-primary-rgb:      var(--ink-rgb);
+  --bs-link-color:       var(--ink);
+  --bs-link-hover-color: var(--ink-dark);
+
+  --surface: #f4f8f6;
+  --card-shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
+  --card-hover:  0 4px 14px rgba(30,77,59,.18);
+}
+
+/* ── Bootstrap primary overrides ─────────────────────────────────────────── */
+.btn-primary {
+  --bs-btn-bg:            var(--ink);
+  --bs-btn-border-color:  var(--ink);
+  --bs-btn-hover-bg:      var(--ink-dark);
+  --bs-btn-hover-border-color: var(--ink-dark);
+  --bs-btn-active-bg:     var(--ink-dark);
+  --bs-btn-focus-shadow-rgb: var(--ink-rgb);
+}
+.btn-outline-primary {
+  --bs-btn-color:          var(--ink);
+  --bs-btn-border-color:   var(--ink);
+  --bs-btn-hover-bg:       var(--ink);
+  --bs-btn-hover-border-color: var(--ink);
+  --bs-btn-active-bg:      var(--ink-dark);
+}
+.text-primary      { color: var(--ink) !important; }
+.bg-primary        { background-color: var(--ink) !important; }
+.border-primary    { border-color: var(--ink) !important; }
+.badge.bg-primary  { background-color: var(--ink) !important; }
+.form-check-input:checked { background-color: var(--ink); border-color: var(--ink); }
+.spinner-border.text-primary { color: var(--ink) !important; }
+a { color: var(--ink); }
+a:hover { color: var(--ink-dark); }
+
+/* ── Base ─────────────────────────────────────────────────────────────────── */
+body {
+  background: var(--surface);
+  font-size: .9rem;
+}
+
+/* ── Login ───────────────────────────────────────────────────────────────── */
+.login-body {
+  background: linear-gradient(140deg, #0d2b1f 0%, #1e4d3b 45%, #0a3d2e 100%);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.login-wrap {
+  width: 100%;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.login-card {
+  background: #fff;
+  border-radius: 1.25rem;
+  padding: 2.5rem 2.25rem;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: 0 25px 60px rgba(0,0,0,.4);
+}
+.login-icon {
+  width: 72px;
+  height: 72px;
+  background: linear-gradient(135deg, var(--ink), var(--ink-mid));
+  border-radius: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  color: #fff;
+}
+
+/* login: dark/green logo asset on white card */
+.login-brand-img {
+  display: inline-block;
+  height: 2.5rem;
+  width: auto;
+  max-width: 14rem;
+  object-fit: contain;
+  vertical-align: middle;
+}
+.login-brand-tagline {
+  line-height: 1.45;
+  max-width: 22rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* server radio buttons */
+.btn-check:checked + .btn-outline-primary {
+  background-color: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+.btn-outline-primary:hover {
+  background-color: var(--ink-dark);
+  border-color: var(--ink-dark);
+}
+
+/* ── Navbar ──────────────────────────────────────────────────────────────── */
+.navbar {
+  background-color: var(--ink) !important;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+.navbar .navbar-brand { color: #fff !important; }
+/* dark navbar → white logo asset (login page uses logo-dark on white card) */
+.navbar-brand-img {
+  display: block;
+  height: 1.65rem;
+  width: auto;
+  max-width: 10rem;
+  object-fit: contain;
+  vertical-align: middle;
+}
+.navbar .nav-link {
+  color: rgba(255,255,255,.8) !important;
+  border-radius: .5rem;
+  transition: background .15s;
+}
+.navbar .nav-link:hover,
+.navbar .nav-link.active {
+  background: rgba(255,255,255,.15) !important;
+  color: #fff !important;
+}
+
+/* ── Cards ───────────────────────────────────────────────────────────────── */
+.card {
+  border: 1px solid #dae8e2;
+  box-shadow: var(--card-shadow);
+  border-radius: .75rem;
+}
+.card-header {
+  background: #f0f7f4;
+  border-bottom: 1px solid #dae8e2;
+  border-radius: .75rem .75rem 0 0 !important;
+  font-size: .85rem;
+}
+
+/* ── Device Cards ────────────────────────────────────────────────────────── */
+.device-card {
+  transition: transform .2s, box-shadow .2s;
+  cursor: default;
+}
+.device-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--card-hover);
+  border-color: #a8d5be;
+}
+.device-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .375rem;
+  margin-top: .5rem;
+}
+.chip {
+  background: #eaf4ef;
+  color: #1e4d3b;
+  border-radius: 999px;
+  padding: .2rem .65rem;
+  font-size: .75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  border: 1px solid #c0dfd0;
+}
+.x-small { font-size: .75rem !important; }
+
+/* ── Empty State ─────────────────────────────────────────────────────────── */
+.empty-state {
+  text-align: center;
+  padding: 4rem 1rem;
+}
+
+/* ── File Browser ────────────────────────────────────────────────────────── */
+.file-list {
+  overflow-y: auto;
+  height: 420px;
+}
+.file-item {
+  padding: .45rem .75rem;
+  border-bottom: 1px solid #f0f7f4;
+  cursor: pointer;
+  transition: background .12s;
+  font-size: .825rem;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+.file-item:hover { background: #f4f9f7; }
+.file-item.selected {
+  background: #e6f4ee;
+  border-left: 3px solid var(--ink);
+}
+.img-item { padding: .35rem .65rem; }
+.img-item img {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: .35rem;
+  background: #dae8e2;
+  flex-shrink: 0;
+}
+.img-meta { flex: 1; min-width: 0; }
+.img-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: .8rem;
+}
+.img-size { font-size: .7rem; }
+.dir-item { color: #374151; }
+
+/* ── Folder Browser ──────────────────────────────────────────────────────── */
+.folder-item {
+  padding: .55rem .85rem;
+  cursor: pointer;
+  font-size: .85rem;
+  transition: background .12s;
+  border-bottom: 1px solid #f4f9f7;
+}
+.folder-item:hover { background: #eaf4ef; }
+.folder-item.selected {
+  background: #d0ede0;
+  color: var(--ink);
+  font-weight: 500;
+}
+
+/* ── Schedule Cards ──────────────────────────────────────────────────────── */
+.schedule-card { transition: transform .15s, box-shadow .15s; }
+.schedule-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--card-hover);
+}
+
+/* ── Tab nav in card header ──────────────────────────────────────────────── */
+.card-header .nav-tabs { border-bottom: none; }
+.card-header .nav-link {
+  color: #64748b;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: .82rem;
+  padding: .5rem .75rem;
+  transition: color .15s, border-color .15s;
+}
+.card-header .nav-link:hover { color: var(--ink); }
+.card-header .nav-link.active {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+  background: transparent;
+  font-weight: 600;
+}
+
+/* ── Drop Zone ───────────────────────────────────────────────────────────── */
+.drop-zone {
+  border: 2px dashed #a8d5be;
+  border-radius: .75rem;
+  min-height: 200px;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+  user-select: none;
+  padding: 1.5rem;
+  text-align: center;
+}
+.drop-zone:hover,
+.drop-zone.drag-over {
+  background: #eaf4ef;
+  border-color: var(--ink);
+}
+.drop-zone.drag-over i { opacity: 1 !important; color: var(--ink) !important; }
+
+/* ── Cropper ─────────────────────────────────────────────────────────────── */
+.cropper-view-box,
+.cropper-face { border-radius: 0; }
+.cropper-line,
+.cropper-point { background-color: #2d6a4f; }
+.cropper-view-box { outline-color: #2d6a4f; }
+
+/* ── Utilities ───────────────────────────────────────────────────────────── */
+.opacity-50 { opacity: .5 !important; }
+.font-monospace { font-family: 'SFMono-Regular', Consolas, monospace; }
+
+/* ── Scrollbar ───────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #a8d5be; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--ink-mid); }

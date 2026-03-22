@@ -1,0 +1,569 @@
+{% extends 'base.html' %}
+{% block title %}Schedules - InkJoy Manager{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="fw-bold mb-0">
+    <i class="bi bi-clock-history me-2 text-primary"></i>
+    <span data-i18n="sched.title">Scheduled Tasks</span>
+  </h4>
+  <div class="d-flex gap-2">
+    <button class="btn btn-outline-secondary btn-sm" onclick="loadSchedulerStatus()" title="刷新调度器状态">
+      <i class="bi bi-activity me-1"></i>
+      <span data-i18n="sched.status.btn">Scheduler Status</span>
+    </button>
+    <button class="btn btn-primary btn-sm" onclick="openModal()">
+      <i class="bi bi-plus-lg me-1"></i>
+      <span data-i18n="sched.new">New Task</span>
+    </button>
+  </div>
+</div>
+
+<!-- Scheduler status panel (collapsed by default) -->
+<div id="schedulerStatusPanel" class="card mb-3 d-none border-0 shadow-sm" style="background:#f0f7f4;">
+  <div class="card-body py-2 px-3">
+    <div class="d-flex justify-content-between align-items-center">
+      <span class="fw-semibold small">
+        <i class="bi bi-activity me-1 text-success"></i>
+        <span data-i18n="sched.status.title">Scheduler Status</span>
+      </span>
+      <div class="d-flex gap-2 align-items-center">
+        <button class="btn btn-outline-warning btn-sm py-0 px-2" onclick="reloadScheduler()" title="从数据库重新加载所有 job">
+          <i class="bi bi-arrow-repeat me-1"></i><span style="font-size:.8rem" data-i18n="sched.status.reload">Reload Jobs</span>
+        </button>
+        <button type="button" class="btn-close btn-sm" onclick="document.getElementById('schedulerStatusPanel').classList.add('d-none')"></button>
+      </div>
+    </div>
+    <div id="schedulerStatusBody" class="mt-2 small font-monospace" style="white-space:pre-wrap;max-height:220px;overflow-y:auto;"></div>
+  </div>
+</div>
+
+<div id="scheduleList">
+  <div class="text-center py-5">
+    <div class="spinner-border" style="color:var(--ink)"></div>
+    <p class="mt-2 text-muted" data-i18n="sched.loading">Loading…</p>
+  </div>
+</div>
+
+<!-- ── New/Edit Modal ──────────────────────────────────────────────────────── -->
+<div class="modal fade" id="schedModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold" id="modalTitle" data-i18n="sched.modal.new">New Scheduled Task</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <!-- Device loading indicator shown while fetching -->
+        <div id="modalLoader" class="text-center py-3 d-none">
+          <div class="spinner-border spinner-border-sm" style="color:var(--ink)"></div>
+          <span class="ms-2 text-muted small" data-i18n="up.device.loading">Loading…</span>
+        </div>
+        <form id="schedForm">
+          <input type="hidden" id="fId">
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label fw-semibold">
+                <span data-i18n="sched.f.name">Task Name</span> <span class="text-danger">*</span>
+              </label>
+              <input type="text" class="form-control" id="fName"
+                     data-i18n-ph="sched.f.name.ph" placeholder="e.g. Living Room Daily Shuffle" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">
+                <span data-i18n="sched.f.device">Target Device</span> <span class="text-danger">*</span>
+              </label>
+              <select class="form-select" id="fDevice" required onchange="showDeviceRes()"></select>
+              <div class="form-text" id="deviceResHint"></div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">
+                <span data-i18n="sched.f.time">Daily Execute Time</span> <span class="text-danger">*</span>
+              </label>
+              <input type="time" class="form-control" id="fTime" value="08:00" required>
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-semibold">
+                <span data-i18n="sched.f.folder">Image Folder</span> <span class="text-danger">*</span>
+              </label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-folder2"></i></span>
+                <input type="text" class="form-control" id="fFolder"
+                       data-i18n-ph="sched.f.folder.ph"
+                       placeholder="e.g. nature or photos/2024" required>
+                <button type="button" class="btn btn-outline-secondary" onclick="openFolderBrowser()">
+                  <i class="bi bi-folder-symlink me-1"></i>
+                  <span data-i18n="sched.fb.browse">Browse</span>
+                </button>
+              </div>
+              <div class="form-text" data-i18n="sched.f.folder.hint">
+                Path in image library. A random image will be sent each run.
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold" data-i18n="sched.f.resize">Fill Mode</label>
+              <select class="form-select" id="fResize">
+                <option value="blur"  data-i18n="sched.resize.blur">Blur Fill (frosted glass padding)</option>
+                <option value="isfr"  data-i18n="sched.resize.isfr">ISFR Smart Crop (upload original)</option>
+                <option value="crop"  data-i18n="sched.resize.crop">Center Crop (fills screen)</option>
+              </select>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
+                data-i18n="sched.btn.cancel">Cancel</button>
+        <button type="button" class="btn btn-primary fw-semibold" onclick="saveSchedule()">
+          <i class="bi bi-check-lg me-1"></i>
+          <span data-i18n="sched.btn.save">Save</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Folder Browser Modal ────────────────────────────────────────────────── -->
+<div class="modal fade" id="fbModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title fw-bold mb-0">
+          <i class="bi bi-folder-open me-1"></i>
+          <span data-i18n="sched.fb.title">Select Folder</span>
+        </h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0">
+        <div class="px-2 pt-2 pb-1 border-bottom" style="background:#f0f7f4;">
+          <div class="input-group input-group-sm">
+            <span class="input-group-text bg-white border-end-0 px-2">
+              <i class="bi bi-folder2 text-muted" style="font-size:.75rem;"></i>
+            </span>
+            <input type="text" class="form-control border-start-0 ps-1"
+                   id="fbPathInput" data-i18n-ph="up.path.ph"
+                   placeholder="Type path and press Enter…"
+                   style="font-size:.78rem;font-family:monospace;"
+                   onkeydown="if(event.key==='Enter') loadFolderList(this.value.trim())">
+            <button class="btn btn-outline-secondary px-2"
+                    onclick="loadFolderList(document.getElementById('fbPathInput').value.trim())">
+              <i class="bi bi-arrow-right-short"></i>
+            </button>
+          </div>
+        </div>
+        <nav class="px-3 py-1 border-bottom" style="background:#f4f9f7;">
+          <ol class="breadcrumb mb-0 small" id="fbBreadcrumb"></ol>
+        </nav>
+        <div id="fbList" style="max-height:310px;overflow-y:auto;"></div>
+      </div>
+      <div class="modal-footer py-2">
+        <div class="me-auto small text-muted">
+          <span data-i18n="sched.fb.selected">Selected:</span>
+          <code id="fbSelected">/ (root)</code>
+        </div>
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal"
+                data-i18n="sched.btn.cancel">Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" onclick="confirmFolder()"
+                data-i18n="sched.fb.confirm">Select This Folder</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const urlP = new URLSearchParams(location.search);
+let devicesCache = [];   // populated lazily when modal opens
+let fbPath = '';
+let editingId = null;
+let schedulerJobsCache = {};  // jobId → next_run
+
+const DEVICE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const DEVICE_CACHE_KEY = `inkjoy_devices_${window.INKJOY_ACCOUNT_ID || 0}`;
+
+// ── FAST page load: schedules + scheduler status ─────────────────────────────
+async function loadAll() {
+  const sr = await fetch('/api/schedules');
+  const sd = await sr.json();
+
+  // Fetch scheduler status in background for next-run display
+  fetch('/api/scheduler/status').then(r => r.json()).then(st => {
+    schedulerJobsCache = {};
+    (st.jobs || []).forEach(j => { schedulerJobsCache[j.id] = j.next_run; });
+    renderSchedules(sd.schedules || []);
+  }).catch(() => renderSchedules(sd.schedules || []));
+}
+
+// ── Lazy device load (cached per account, only when modal opens) ─────────────
+async function getDevices() {
+  // 1. Try localStorage cache — must belong to current account and be fresh
+  try {
+    const cached = JSON.parse(localStorage.getItem(DEVICE_CACHE_KEY) || 'null');
+    if (cached && Date.now() - cached.ts < DEVICE_CACHE_TTL) {
+      return cached.data;
+    }
+  } catch(_) {}
+  // 2. Fetch from API
+  document.getElementById('modalLoader').classList.remove('d-none');
+  try {
+    const resp = await fetch('/api/devices');
+    if (!resp.ok) {
+      showDeviceLoadError(resp.status === 401 ? t('up.device.none') : `HTTP ${resp.status}`);
+      return [];
+    }
+    const data = await resp.json();
+    if (data.success && data.devices?.length) {
+      localStorage.setItem(DEVICE_CACHE_KEY, JSON.stringify({
+        ts: Date.now(), data: data.devices
+      }));
+      return data.devices;
+    }
+    showDeviceLoadError(data.error || t('up.device.none'));
+    return [];
+  } catch(e) {
+    showDeviceLoadError(e.message);
+    return [];
+  } finally {
+    document.getElementById('modalLoader').classList.add('d-none');
+  }
+}
+
+function showDeviceLoadError(msg) {
+  const devSel = document.getElementById('fDevice');
+  if (!devSel) return;
+  devSel.innerHTML = '';
+  const wrap = devSel.closest('.col-md-6') || devSel.parentElement;
+  const existing = wrap.querySelector('.device-load-err');
+  if (existing) existing.remove();
+  const div = document.createElement('div');
+  div.className = 'device-load-err text-danger small mt-1 d-flex align-items-center gap-2';
+  div.innerHTML = `<span><i class="bi bi-exclamation-triangle-fill me-1"></i>${msg}</span>
+    <a href="#" onclick="reloadDevices();return false;" class="text-primary">重新加载</a>`;
+  wrap.appendChild(div);
+}
+
+async function reloadDevices() {
+  localStorage.removeItem(DEVICE_CACHE_KEY);
+  // Backward compatibility: clear legacy shared cache key
+  localStorage.removeItem('inkjoy_devices');
+  const wrap = document.getElementById('fDevice')?.closest('.col-md-6');
+  if (wrap) { const e = wrap.querySelector('.device-load-err'); if(e) e.remove(); }
+  devicesCache = await getDevices();
+  populateSelects(null);
+}
+
+// ── Render schedule list ──────────────────────────────────────────────────────
+function resizeLabel(m) {
+  return ({ blur: t('sched.resize.blur.short'), isfr: t('sched.resize.isfr.short'),
+            crop: t('sched.resize.crop.short') })[m] || m;
+}
+
+function fmtNextRun(isoStr) {
+  if (!isoStr) return null;
+  try {
+    const d = new Date(isoStr);
+    return d.toLocaleString();
+  } catch(_) { return isoStr; }
+}
+
+function renderSchedules(list) {
+  const el = document.getElementById('scheduleList');
+  if (!list.length) {
+    el.innerHTML = `
+      <div class="empty-state">
+        <i class="bi bi-clock-history display-3 text-muted"></i>
+        <p class="mt-3 text-muted">${t('sched.empty')}</p>
+        <button class="btn btn-primary mt-1" onclick="openModal()">
+          <i class="bi bi-plus-lg me-1"></i>${t('sched.create.first')}
+        </button>
+      </div>`;
+    return;
+  }
+  el.innerHTML = list.map(s => {
+    const statusBadge = s.last_status === 'success'
+      ? `<span class="badge bg-success">${t('sched.badge.ok')}</span>`
+      : s.last_status === 'error'
+        ? `<span class="badge bg-danger">${t('sched.badge.err')}</span>`
+        : `<span class="badge bg-secondary">${t('sched.badge.never')}</span>`;
+
+    const jobKey = `schedule_${s.id}`;
+    const nextRun = schedulerJobsCache[jobKey];
+    const nextRunHtml = s.enabled
+      ? nextRun
+        ? `<div class="small text-success mt-1"><i class="bi bi-alarm-fill me-1"></i>${t('sched.next.run')} ${fmtNextRun(nextRun)}</div>`
+        : `<div class="small text-warning mt-1"><i class="bi bi-exclamation-circle me-1"></i>${t('sched.not.registered')}</div>`
+      : '';
+
+    return `
+    <div class="card mb-3 schedule-card ${!s.enabled ? 'opacity-50' : ''}">
+      <div class="card-body pb-2">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <h6 class="fw-bold mb-1">${s.name}</h6>
+            <div class="small text-muted d-flex flex-wrap gap-3">
+              <span><i class="bi bi-display me-1"></i>${s.device_name || s.device_id}</span>
+              <span><i class="bi bi-folder2 me-1"></i>${s.folder_path}</span>
+              <span><i class="bi bi-alarm me-1"></i>${t('sched.daily')} ${s.schedule_time}</span>
+              <span><i class="bi bi-arrows-fullscreen me-1"></i>${resizeLabel(s.resize_mode)}</span>
+            </div>
+            ${s.last_run_at ? `<div class="small text-muted mt-1">${t('sched.last.run')} ${s.last_run_at}</div>` : ''}
+            ${nextRunHtml}
+            ${s.last_error ? `<div class="small text-danger mt-1"><i class="bi bi-exclamation-triangle me-1"></i>${s.last_error}</div>` : ''}
+          </div>
+          <div class="d-flex align-items-center gap-2 ms-3">
+            ${statusBadge}
+            <div class="form-check form-switch mb-0">
+              <input class="form-check-input" type="checkbox" role="switch"
+                     ${s.enabled ? 'checked' : ''}
+                     onchange="toggleSched(${s.id}, this.checked)">
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card-footer bg-transparent border-top d-flex gap-2 py-2">
+        <button class="btn btn-sm btn-outline-success" onclick="runNow(${s.id}, this)">
+          <i class="bi bi-play-fill me-1"></i>${t('sched.btn.run')}
+        </button>
+        <button class="btn btn-sm btn-outline-primary" onclick='editSched(${JSON.stringify(s).replace(/'/g,"&#39;")})'>
+          <i class="bi bi-pencil me-1"></i>${t('sched.btn.edit')}
+        </button>
+        <button class="btn btn-sm btn-outline-danger ms-auto" onclick="delSched(${s.id},'${s.name.replace(/'/g,"\\'")}')">
+          <i class="bi bi-trash me-1"></i>${t('sched.btn.delete')}
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+async function openModal(data) {
+  editingId = data?.id || null;
+  document.getElementById('modalTitle').textContent =
+    data ? t('sched.modal.edit') : t('sched.modal.new');
+  document.getElementById('fId').value = data?.id || '';
+  document.getElementById('fName').value = data?.name || '';
+  document.getElementById('fTime').value = data?.schedule_time || '08:00';
+  document.getElementById('fFolder').value = data?.folder_path || '';
+  document.getElementById('fResize').value = data?.resize_mode || 'crop';
+
+  const modal = new bootstrap.Modal(document.getElementById('schedModal'));
+  modal.show();
+
+  // Lazy-load devices (uses cache if fresh)
+  devicesCache = await getDevices();
+  populateSelects(data);
+
+  if (!data && urlP.get('device_id')) {
+    document.getElementById('fDevice').value = urlP.get('device_id');
+    showDeviceRes();
+  }
+}
+
+function editSched(s) { openModal(s); }
+
+function populateSelects(scheduleData) {
+  const devSel = document.getElementById('fDevice');
+  devSel.innerHTML = `<option value="">${t('sched.select.device')}</option>` +
+    devicesCache.map(d =>
+      `<option value="${d.deviceId}"
+        data-name="${d.deviceName || d.deviceId}"
+        data-w="${d.resolution?.width || ''}"
+        data-h="${d.resolution?.height || ''}"
+        ${scheduleData?.device_id === d.deviceId ? 'selected' : ''}>
+        ${d.deviceName || d.deviceId} ${d.status === 'ONLINE' ? '🟢' : '⚫'}
+      </option>`
+    ).join('');
+
+  if (scheduleData) showDeviceRes();
+}
+
+function showDeviceRes() {
+  const opt = document.getElementById('fDevice').options[document.getElementById('fDevice').selectedIndex];
+  const hint = document.getElementById('deviceResHint');
+  hint.textContent = opt?.dataset?.w && opt?.dataset?.h
+    ? `${t('sched.resolution.hint')}${opt.dataset.w} × ${opt.dataset.h}` : '';
+}
+
+async function saveSchedule() {
+  const name = document.getElementById('fName').value.trim();
+  const devSel = document.getElementById('fDevice');
+  const deviceId = devSel.value;
+  const opt = devSel.options[devSel.selectedIndex];
+  const time = document.getElementById('fTime').value;
+  const folder = document.getElementById('fFolder').value.trim();
+  const resize = document.getElementById('fResize').value;
+
+  if (!name || !deviceId || !time || !folder) {
+    alert(t('sched.required')); return;
+  }
+  const body = {
+    name, device_id: deviceId,
+    device_name: opt?.dataset?.name || deviceId,
+    device_width: parseInt(opt?.dataset?.w) || null,
+    device_height: parseInt(opt?.dataset?.h) || null,
+    folder_path: folder, schedule_time: time, resize_mode: resize, enabled: true,
+  };
+  try {
+    const url = editingId ? `/api/schedules/${editingId}` : '/api/schedules';
+    const method = editingId ? 'PUT' : 'POST';
+    const resp = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const d = await resp.json();
+    if (d.success) {
+      bootstrap.Modal.getInstance(document.getElementById('schedModal')).hide();
+      loadAll();
+    } else { alert(t('sched.save.err') + (d.error || '')); }
+  } catch (e) { alert(t('sched.req.err') + e.message); }
+}
+
+async function toggleSched(id, enabled) {
+  const resp = await fetch(`/api/schedules/${id}/toggle`, {
+    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ enabled }),
+  });
+  const d = await resp.json();
+  if (!d.success) { alert(d.error); loadAll(); }
+}
+
+async function delSched(id, name) {
+  if (!confirm(t('sched.del.confirm', { name }))) return;
+  const resp = await fetch(`/api/schedules/${id}`, { method: 'DELETE' });
+  const d = await resp.json();
+  if (d.success) loadAll();
+  else alert(t('sched.del.err') + d.error);
+}
+
+async function runNow(id, btn) {
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>${t('sched.btn.running')}`;
+  try {
+    const resp = await fetch(`/api/schedules/${id}/run`, { method: 'POST' });
+    const d = await resp.json();
+    if (d.success) {
+      btn.className = 'btn btn-sm btn-success';
+      btn.innerHTML = `<i class="bi bi-check-lg me-1"></i>${t('sched.btn.ran')}`;
+      setTimeout(() => { btn.className = 'btn btn-sm btn-outline-success'; btn.innerHTML = orig; btn.disabled = false; loadAll(); }, 2500);
+    } else { alert(t('sched.run.err') + d.error); btn.innerHTML = orig; btn.disabled = false; loadAll(); }
+  } catch (e) { alert(t('sched.req.err') + e.message); btn.innerHTML = orig; btn.disabled = false; }
+}
+
+// ── Folder browser ────────────────────────────────────────────────────────────
+function openFolderBrowser() {
+  fbPath = '';
+  loadFolderList('');
+  new bootstrap.Modal(document.getElementById('fbModal')).show();
+}
+
+async function loadFolderList(path) {
+  path = (path || '').replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+  fbPath = path;
+  const fbSel = document.getElementById('fbSelected');
+  if (fbSel) fbSel.textContent = path || t('sched.fb.root');
+  const inp = document.getElementById('fbPathInput');
+  if (inp) inp.value = path;
+
+  const resp = await fetch('/api/browse?path=' + encodeURIComponent(path));
+  const data = await resp.json();
+  if (!data.success) return;
+
+  const parts = path ? path.split('/').filter(Boolean) : [];
+  let bc = `<li class="breadcrumb-item"><a href="#" onclick="loadFolderList('')"><i class="bi bi-house-fill"></i></a></li>`;
+  let built = '';
+  parts.forEach((p, i) => {
+    built += (built ? '/' : '') + p;
+    const bp = built;
+    bc += i === parts.length - 1
+      ? `<li class="breadcrumb-item active">${p}</li>`
+      : `<li class="breadcrumb-item"><a href="#" onclick="loadFolderList('${bp}')">${p}</a></li>`;
+  });
+  document.getElementById('fbBreadcrumb').innerHTML = bc;
+
+  const dirs = data.items.filter(i => i.type === 'dir');
+  let html = '';
+  if (path) {
+    const parent = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '';
+    html += `<div class="folder-item" onclick="loadFolderList('${parent}')">
+      <i class="bi bi-arrow-up-circle text-secondary me-2"></i>${t('sched.fb.parent')}</div>`;
+  }
+  if (!dirs.length && !html) {
+    html = `<div class="p-3 text-center text-muted small">${t('sched.fb.nofolders')}</div>`;
+  }
+  dirs.forEach(d => {
+    html += `<div class="folder-item" onclick="selectFolder('${d.path}')" ondblclick="loadFolderList('${d.path}')">
+      <i class="bi bi-folder-fill text-warning me-2"></i>${d.name}
+      <small class="text-muted ms-2">(dbl-click to enter)</small></div>`;
+  });
+  document.getElementById('fbList').innerHTML = html;
+}
+
+function selectFolder(path) {
+  fbPath = path;
+  document.getElementById('fbSelected').textContent = path || t('sched.fb.root');
+  document.querySelectorAll('.folder-item').forEach(e => e.classList.remove('selected'));
+  event.currentTarget.classList.add('selected');
+}
+function confirmFolder() {
+  document.getElementById('fFolder').value = fbPath;
+  bootstrap.Modal.getInstance(document.getElementById('fbModal')).hide();
+}
+
+// ── Scheduler status panel ────────────────────────────────────────────────────
+async function loadSchedulerStatus() {
+  const panel = document.getElementById('schedulerStatusPanel');
+  const body = document.getElementById('schedulerStatusBody');
+  panel.classList.remove('d-none');
+  body.textContent = 'Loading…';
+  try {
+    const resp = await fetch('/api/scheduler/status');
+    const d = await resp.json();
+    if (!d.success) { body.textContent = 'Error: ' + (d.error || 'unknown'); return; }
+
+    schedulerJobsCache = {};
+    (d.jobs || []).forEach(j => { schedulerJobsCache[j.id] = j.next_run; });
+
+    let txt = `Running : ${d.running}\nTimezone: ${d.timezone}\nServer  : ${d.server_time}\nJobs (${d.jobs.length}):\n`;
+    if (!d.jobs.length) {
+      txt += '  (none — no enabled schedules registered)\n';
+    } else {
+      d.jobs.forEach(j => {
+        txt += `  [${j.id}]  next=${j.next_run || 'N/A'}  trigger=${j.trigger}\n`;
+      });
+    }
+    body.textContent = txt;
+    // re-render cards with updated next-run info
+    const sr = await fetch('/api/schedules');
+    const sd = await sr.json();
+    renderSchedules(sd.schedules || []);
+  } catch (e) {
+    body.textContent = 'Request failed: ' + e.message;
+  }
+}
+
+async function reloadScheduler() {
+  const body = document.getElementById('schedulerStatusBody');
+  body.textContent = 'Reloading…';
+  try {
+    const resp = await fetch('/api/scheduler/reload', { method: 'POST' });
+    const d = await resp.json();
+    if (!d.success) { body.textContent = 'Error: ' + (d.error || 'unknown'); return; }
+
+    schedulerJobsCache = {};
+    (d.jobs || []).forEach(j => { schedulerJobsCache[j.id] = j.next_run; });
+
+    let txt = `Reload OK\nRunning : ${d.running}\nTimezone: ${d.timezone}\nServer  : ${d.server_time}\nJobs (${d.jobs.length}):\n`;
+    (d.jobs || []).forEach(j => {
+      txt += `  [${j.id}]  next=${j.next_run || 'N/A'}  trigger=${j.trigger}\n`;
+    });
+    body.textContent = txt;
+    const sr = await fetch('/api/schedules');
+    const sd = await sr.json();
+    renderSchedules(sd.schedules || []);
+  } catch (e) {
+    body.textContent = 'Request failed: ' + e.message;
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+loadAll();   // fast: only schedules + accounts (local SQLite)
+// Auto-open modal if coming from device card (devices loaded lazily inside openModal)
+if (urlP.get('device_id')) setTimeout(() => openModal(), 300);
+</script>
+{% endblock %}
