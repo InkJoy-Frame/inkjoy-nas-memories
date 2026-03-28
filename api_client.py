@@ -1,8 +1,8 @@
 import requests
 
 SERVERS = {
-    'global': 'https://open.inkjoyframe.com',
-    'china': 'https://open.advisor.00r.top',
+    'global': 'https://openapi.inkjoyframe.com',
+    'china': 'https://openapi.advisor.epaperframe.com',
 }
 
 

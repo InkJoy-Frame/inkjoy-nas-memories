@@ -69,7 +69,7 @@ docker-compose down
 
 ## API Dependency
 
-Based on [InkJoy Open API](https://app.inkjoyframe.com/statics/developer/):
+Based on [InkJoy Open API](https://openapi.inkjoyframe.com/):
 
 - `POST /api/v1/auth/login`
 - `GET /api/v1/devices`
