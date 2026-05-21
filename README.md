@@ -10,7 +10,7 @@ InkJoy Manager is a web app for managing InkJoy ePaper frames with upload and sc
 
 ## Features
 
-- Account login (Global / China server)
+- Account login (auto server detection; conflict UI only when needed)
 - Device list retrieval
 - Image upload and basic crop flow
 - Scheduled daily image publishing from folder

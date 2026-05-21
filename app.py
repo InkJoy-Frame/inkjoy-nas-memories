@@ -81,37 +81,67 @@ def index():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if request.method == 'POST':
-        data = request.get_json() or request.form
-        server_key = data.get('server', 'global')
-        email = data.get('email', '').strip()
-        password = data.get('password', '')
+    if request.method != 'POST':
+        return render_template('login.html')
 
-        from api_client import InkJoyClient, SERVERS
-        server_url = SERVERS.get(server_key, SERVERS['global'])
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from api_client import InkJoyClient, SERVERS
 
+    data = request.get_json() or request.form
+    email = data.get('email', '').strip()
+    password = data.get('password', '')
+
+    chosen_server = data.get('server_url')
+    if chosen_server:
         try:
-            client = InkJoyClient(server_url)
+            client = InkJoyClient(chosen_server)
             login_data = client.login(email, password)
-
-            session.permanent = True
-            session['token'] = login_data['token']
-            session['uid'] = login_data.get('uid')
-            session['server_url'] = server_url
-            session['server_key'] = server_key
-            session['email'] = email
-
-            from database import save_account
-            account_id = save_account(
-                email.split('@')[0], email, password, server_url, login_data['token']
-            )
-            session['account_id'] = account_id
-
+            _finish_login(email, password, chosen_server, login_data)
             return jsonify({'success': True})
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 400
 
-    return render_template('login.html')
+    def _try_server(name, url):
+        try:
+            client = InkJoyClient(url)
+            return name, url, client.login(email, password)
+        except Exception:
+            return name, url, None
+
+    with ThreadPoolExecutor(max_workers=len(SERVERS)) as pool:
+        futures = {pool.submit(_try_server, k, v): k for k, v in SERVERS.items()}
+        successes = []
+        for f in as_completed(futures):
+            name, url, login_data = f.result()
+            if login_data:
+                successes.append({'name': name, 'url': url, 'token': login_data['token']})
+
+    if not successes:
+        return jsonify({'success': False, 'error': f'Login failed for {email}'}), 400
+
+    if len(successes) == 1:
+        s = successes[0]
+        _finish_login(email, password, s['url'], {'token': s['token']})
+        return jsonify({'success': True})
+
+    return jsonify({
+        'success': False,
+        'conflict': True,
+        'servers': [{'name': s['name'], 'url': s['url']} for s in successes],
+    })
+
+
+def _finish_login(email, password, server_url, login_data):
+    from database import save_account
+    session.permanent = True
+    session['token'] = login_data['token']
+    session['server_url'] = server_url
+    session['email'] = email
+
+    account_id = save_account(
+        email.split('@')[0], email, password, server_url, login_data['token']
+    )
+    session['account_id'] = account_id
 
 
 @app.route('/logout')

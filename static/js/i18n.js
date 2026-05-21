@@ -17,16 +17,13 @@ const I18N = {
     'nav.logout':    'Logout',
 
     /* ── Login ────────────────────────────────────── */
-    'login.title':       'ePaper Frame Manager',
     'login.tagline':     'Turn your NAS into a living photo stream for InkJoy Frame.',
-    'login.server':      'Server Region',
-    'login.global':      'Global Server',
-    'login.china':       'China Server',
     'login.email':       'Email',
     'login.email.ph':    'your@email.com',
     'login.pwd':         'Password',
     'login.pwd.ph':      'Password',
     'login.submit':      'Login',
+    'login.conflict':    'Account found on multiple servers — please select:',
     'login.err.net':     'Network error, please retry',
     'login.err.default': 'Login failed, check email/password',
 
@@ -138,16 +135,13 @@ const I18N = {
     'nav.logout':    '退出',
 
     /* ── Login ────────────────────────────────────── */
-    'login.title':       'ePaper Frame 管理器',
     'login.tagline':     '让 NAS 成为 InkJoy 相框上的流动相册。',
-    'login.server':      '服务器地区',
-    'login.global':      '全球服务器',
-    'login.china':       '国内服务器',
     'login.email':       '邮箱',
     'login.email.ph':    'your@email.com',
     'login.pwd':         '密码',
     'login.pwd.ph':      '密码',
     'login.submit':      '登录',
+    'login.conflict':    '账号在多个服务器上找到，请选择：',
     'login.err.net':     '网络错误，请重试',
     'login.err.default': '登录失败，请检查账号密码',
 

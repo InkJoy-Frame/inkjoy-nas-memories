@@ -4,132 +4,169 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>InkJoy Manager</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-  <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/logo-square.png') }}">
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/logo-mark.png') }}">
   <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
   <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
 </head>
-<body class="login-body">
-  <div class="login-wrap">
-    <div class="login-card shadow-lg">
+<body>
 
-      <!-- Lang toggle top-right -->
-      <div class="text-end mb-2">
-        <button id="langBtn" class="btn btn-sm btn-outline-secondary px-2 py-0"
-                style="font-size:.75rem;"
-                onclick="setLang(getLang()==='en'?'zh':'en')">中文</button>
-      </div>
+<div id="login-page">
+  <div class="login-card">
+    <button class="login-lang-btn" id="langBtn"
+            onclick="setLang(getLang()==='en'?'zh':'en')">中文</button>
 
-      <div class="text-center mb-4">
-        <img src="{{ url_for('static', filename='images/logo-dark.png') }}"
-             alt="InkJoy" class="login-brand-img mb-3">
-        <h1 class="h5 fw-bold text-body mb-2" data-i18n="login.title">ePaper Frame Manager</h1>
-        <p class="text-muted small mb-0 px-1 login-brand-tagline" data-i18n="login.tagline">Turn your NAS into a living photo stream for InkJoy Frame.</p>
-      </div>
-
-      <div id="alertBox" class="alert d-none mb-3 py-2"></div>
-
-      <form id="loginForm" autocomplete="on">
-        <div class="mb-3">
-          <label class="form-label fw-semibold" data-i18n="login.server">Server Region</label>
-          <div class="d-flex gap-2">
-            <div class="flex-fill">
-              <input type="radio" class="btn-check" name="server" id="serverGlobal" value="global" checked>
-              <label class="btn btn-outline-primary w-100" for="serverGlobal">
-                <i class="bi bi-globe2 me-1"></i><span data-i18n="login.global">Global Server</span>
-              </label>
-            </div>
-            <div class="flex-fill">
-              <input type="radio" class="btn-check" name="server" id="serverChina" value="china">
-              <label class="btn btn-outline-danger w-100" for="serverChina">
-                <i class="bi bi-flag-fill me-1"></i><span data-i18n="login.china">China Server</span>
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <div class="mb-3">
-          <label for="email" class="form-label fw-semibold" data-i18n="login.email">Email</label>
-          <div class="input-group">
-            <span class="input-group-text"><i class="bi bi-envelope"></i></span>
-            <input type="email" class="form-control" id="email"
-                   data-i18n-ph="login.email.ph"
-                   placeholder="your@email.com"
-                   autocomplete="email" required>
-          </div>
-        </div>
-
-        <div class="mb-4">
-          <label for="password" class="form-label fw-semibold" data-i18n="login.pwd">Password</label>
-          <div class="input-group">
-            <span class="input-group-text"><i class="bi bi-lock"></i></span>
-            <input type="password" class="form-control" id="password"
-                   data-i18n-ph="login.pwd.ph"
-                   placeholder="Password"
-                   autocomplete="current-password" required>
-            <button class="btn btn-outline-secondary" type="button" id="togglePwd">
-              <i class="bi bi-eye"></i>
-            </button>
-          </div>
-        </div>
-
-        <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold" id="loginBtn">
-          <span class="spinner-border spinner-border-sm d-none me-2" id="loginSpinner"></span>
-          <i class="bi bi-box-arrow-in-right me-1"></i>
-          <span data-i18n="login.submit">Login</span>
-        </button>
-      </form>
+    <div class="login-logo">
+      <img src="{{ url_for('static', filename='images/logo-green.svg') }}"
+           alt="InkJoy" class="login-logo-svg">
+      <p data-i18n="login.tagline">Turn your NAS into a living photo stream for InkJoy Frame.</p>
     </div>
+
+    <div id="loginAlert" class="login-alert"></div>
+
+    <form id="loginForm" autocomplete="on">
+      <div class="form-group">
+        <label for="emailInput" data-i18n="login.email">Email</label>
+        <input type="email" id="emailInput"
+               data-i18n-ph="login.email.ph" placeholder="your@email.com"
+               autocomplete="email" required>
+      </div>
+
+      <div class="form-group">
+        <label for="passwordInput" data-i18n="login.pwd">Password</label>
+        <div class="password-wrap">
+          <input type="password" id="passwordInput"
+                 data-i18n-ph="login.pwd.ph" placeholder="Password"
+                 autocomplete="current-password" required>
+          <button type="button" class="password-toggle" id="togglePwd">
+            <svg id="eyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div id="serverConflictGroup" class="server-conflict-group" style="display:none">
+        <div class="server-conflict-hint" data-i18n="login.conflict">
+          Account found on multiple servers — please select:
+        </div>
+        <select id="serverConflictSelect"></select>
+      </div>
+
+      <button type="submit" class="btn-login" id="loginBtn" disabled>
+        <div class="spinner" id="loginSpinner"></div>
+        <span id="loginBtnText" data-i18n="login.submit">Login</span>
+      </button>
+    </form>
   </div>
+</div>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script>
-    document.getElementById('togglePwd').addEventListener('click', () => {
-      const pwd = document.getElementById('password');
-      const icon = document.querySelector('#togglePwd i');
-      pwd.type = pwd.type === 'password' ? 'text' : 'password';
-      icon.className = pwd.type === 'password' ? 'bi bi-eye' : 'bi bi-eye-slash';
-    });
+<script>
+(function () {
+  const emailInput = document.getElementById('emailInput');
+  const passwordInput = document.getElementById('passwordInput');
+  const loginBtn = document.getElementById('loginBtn');
+  const spinner = document.getElementById('loginSpinner');
+  const alertBox = document.getElementById('loginAlert');
+  const conflictGroup = document.getElementById('serverConflictGroup');
+  const conflictSelect = document.getElementById('serverConflictSelect');
 
-    document.getElementById('loginForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const btn = document.getElementById('loginBtn');
-      const spinner = document.getElementById('loginSpinner');
-      const alertBox = document.getElementById('alertBox');
+  let pendingConflict = null;
 
-      btn.disabled = true;
-      spinner.classList.remove('d-none');
-      alertBox.classList.add('d-none');
+  /* ── 密码可见切换 ── */
+  document.getElementById('togglePwd').addEventListener('click', () => {
+    const pwd = passwordInput;
+    pwd.type = pwd.type === 'password' ? 'text' : 'password';
+    document.getElementById('eyeIcon').innerHTML = pwd.type === 'password'
+      ? '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'
+      : '<path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
+  });
 
-      const server = document.querySelector('input[name="server"]:checked').value;
-      const email = document.getElementById('email').value.trim();
-      const password = document.getElementById('password').value;
+  /* ── 按钮启用 ── */
+  function syncBtn() {
+    loginBtn.disabled = !(emailInput.value.trim() && passwordInput.value);
+  }
+  emailInput.addEventListener('input', () => { syncBtn(); hideConflict(); });
+  passwordInput.addEventListener('input', () => { syncBtn(); hideConflict(); });
 
-      try {
-        const resp = await fetch('/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ server, email, password }),
-        });
-        const data = await resp.json();
-        if (data.success) {
-          window.location.href = '/dashboard';
-        } else {
-          alertBox.className = 'alert alert-danger mb-3 py-2';
-          alertBox.innerHTML = `<i class="bi bi-exclamation-triangle me-1"></i>${data.error || t('login.err.default')}`;
-          alertBox.classList.remove('d-none');
-          btn.disabled = false;
-          spinner.classList.add('d-none');
-        }
-      } catch (err) {
-        alertBox.className = 'alert alert-danger mb-3 py-2';
-        alertBox.innerHTML = `<i class="bi bi-wifi-off me-1"></i>${t('login.err.net')}`;
-        alertBox.classList.remove('d-none');
-        btn.disabled = false;
-        spinner.classList.add('d-none');
+  /* ── Enter 跳转 ── */
+  emailInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); passwordInput.focus(); }
+  });
+
+  /* ── 冲突 UI ── */
+  function showConflict(servers) {
+    conflictSelect.innerHTML = servers.map(s =>
+      '<option value="' + s.url + '">' + s.name + '</option>'
+    ).join('');
+    conflictGroup.style.display = 'block';
+    pendingConflict = servers;
+  }
+
+  function hideConflict() {
+    conflictGroup.style.display = 'none';
+    pendingConflict = null;
+  }
+
+  function showAlert(msg) {
+    alertBox.className = 'login-alert alert-error show';
+    alertBox.textContent = msg;
+  }
+
+  function clearAlert() {
+    alertBox.className = 'login-alert';
+    alertBox.textContent = '';
+  }
+
+  function setLoading(on) {
+    loginBtn.disabled = on;
+    spinner.style.display = on ? 'block' : 'none';
+  }
+
+  /* ── 登录提交 ── */
+  document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearAlert();
+
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
+
+    const body = { email, password };
+
+    if (pendingConflict) {
+      body.server_url = conflictSelect.value;
+    }
+
+    setLoading(true);
+
+    try {
+      const resp = await fetch('/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await resp.json();
+
+      if (data.success) {
+        window.location.href = '/dashboard';
+        return;
       }
-    });
-  </script>
+
+      if (data.conflict) {
+        showConflict(data.servers);
+        setLoading(false);
+        return;
+      }
+
+      showAlert(data.error || t('login.err.default'));
+    } catch {
+      showAlert(t('login.err.net'));
+    }
+
+    setLoading(false);
+  });
+})();
+</script>
 </body>
 </html>
