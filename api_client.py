@@ -37,6 +37,26 @@ class InkJoyClient:
             return data.get('data', [])
         raise Exception(data.get('msg', '获取设备列表失败'))
 
+    def list_albums(self):
+        resp = self.session.post(f'{self.server_url}/api/v1/album/list', timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        if data.get('code') == 0:
+            return data.get('data', [])
+        raise Exception(data.get('msg', '获取相册列表失败'))
+
+    def list_album_photos(self, album_id):
+        resp = self.session.post(
+            f'{self.server_url}/api/v1/album/img/list',
+            json={'albumId': album_id},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if data.get('code') == 0:
+            return data.get('data', [])
+        raise Exception(data.get('msg', '获取相册图片失败'))
+
     def publish_image(self, device_id, image_data, filename='image.jpg'):
         files = {'file': (filename, image_data, 'image/jpeg')}
         resp = self.session.post(

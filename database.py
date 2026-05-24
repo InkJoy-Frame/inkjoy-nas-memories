@@ -23,6 +23,14 @@ def init_db(app):
             created_at TEXT DEFAULT (datetime('now'))
         );
 
+        CREATE TABLE IF NOT EXISTS nas_albums (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            folder_path TEXT NOT NULL,
+            account_id INTEGER NOT NULL,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+
         CREATE TABLE IF NOT EXISTS schedules (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
@@ -202,6 +210,63 @@ def delete_schedule(schedule_id, account_id=None):
             'DELETE FROM schedules WHERE id=? AND account_id=?',
             (schedule_id, account_id),
         )
+    conn.commit()
+    conn.close()
+    return cur.rowcount > 0
+
+
+def get_nas_albums(account_id):
+    conn = get_db()
+    rows = conn.execute(
+        'SELECT * FROM nas_albums WHERE account_id = ? ORDER BY created_at DESC',
+        (account_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_nas_album(album_id, account_id=None):
+    conn = get_db()
+    if account_id is None:
+        row = conn.execute('SELECT * FROM nas_albums WHERE id = ?', (album_id,)).fetchone()
+    else:
+        row = conn.execute(
+            'SELECT * FROM nas_albums WHERE id = ? AND account_id = ?',
+            (album_id, account_id),
+        ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def create_nas_album(name, folder_path, account_id):
+    conn = get_db()
+    cur = conn.execute(
+        'INSERT INTO nas_albums (name, folder_path, account_id) VALUES (?,?,?)',
+        (name, folder_path, account_id),
+    )
+    album_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return album_id
+
+
+def rename_nas_album(album_id, name, account_id):
+    conn = get_db()
+    cur = conn.execute(
+        'UPDATE nas_albums SET name = ? WHERE id = ? AND account_id = ?',
+        (name, album_id, account_id),
+    )
+    conn.commit()
+    conn.close()
+    return cur.rowcount > 0
+
+
+def delete_nas_album(album_id, account_id):
+    conn = get_db()
+    cur = conn.execute(
+        'DELETE FROM nas_albums WHERE id = ? AND account_id = ?',
+        (album_id, account_id),
+    )
     conn.commit()
     conn.close()
     return cur.rowcount > 0

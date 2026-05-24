@@ -70,6 +70,46 @@ def login_required(f):
     return decorated
 
 
+def _handle_api_error(e):
+    """上游 InkJoy API 返回 401 时清 session 并透传 401，与 webtool 的 apiFetch 拦截逻辑对齐。"""
+    from requests.exceptions import HTTPError
+
+    if isinstance(e, HTTPError) and e.response is not None and e.response.status_code == 401:
+        session.clear()
+        return jsonify({'success': False, 'error': '登录已过期，请重新登录'}), 401
+
+    return jsonify({'success': False, 'error': str(e)}), 400
+
+
+def _require_account_id():
+    """从 session 取 account_id，缺失时返回 (None, 401 response)。"""
+    aid = session.get('account_id')
+
+    if aid:
+        return aid, None
+
+    return None, (jsonify({'success': False, 'error': '未登录'}), 401)
+
+
+def _scan_image_folder(folder_path):
+    """扫描 IMAGES_DIR 下的相对路径，返回 (img_count, cover_relative_path, photos_list)。"""
+    folder = os.path.normpath(os.path.join(IMAGES_DIR, folder_path))
+
+    if not folder.startswith(os.path.normpath(IMAGES_DIR)) or not os.path.isdir(folder):
+        return 0, None, []
+
+    photos = []
+
+    for name in sorted(os.listdir(folder)):
+
+        if os.path.splitext(name)[1].lower() in IMAGE_EXTENSIONS:
+            rel = os.path.relpath(os.path.join(folder, name), IMAGES_DIR).replace('\\', '/')
+            photos.append({'name': name, 'path': rel})
+
+    cover = photos[0]['path'] if photos else None
+    return len(photos), cover, photos
+
+
 # ── Pages ────────────────────────────────────────────────────────────────────
 
 @app.route('/')
@@ -156,10 +196,16 @@ def dashboard():
     return render_template('dashboard.html')
 
 
+@app.route('/albums')
+@login_required
+def albums():
+    return render_template('albums.html')
+
+
 @app.route('/upload')
 @login_required
 def upload():
-    return render_template('upload.html')
+    return redirect(url_for('albums'))
 
 
 @app.route('/schedules')
@@ -179,7 +225,132 @@ def api_devices():
         devices = client.get_devices()
         return jsonify({'success': True, 'devices': devices})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _handle_api_error(e)
+
+
+# ── API: Albums ──────────────────────────────────────────────────────────────
+
+@app.route('/api/cloud-albums')
+@login_required
+def api_cloud_albums():
+    from api_client import InkJoyClient
+    try:
+        client = InkJoyClient(session['server_url'], session['token'])
+        albums = client.list_albums()
+        return jsonify({'success': True, 'albums': albums})
+    except Exception as e:
+        return _handle_api_error(e)
+
+
+@app.route('/api/cloud-albums/<album_id>/photos')
+@login_required
+def api_cloud_album_photos(album_id):
+    from api_client import InkJoyClient
+    try:
+        client = InkJoyClient(session['server_url'], session['token'])
+        photos = client.list_album_photos(album_id)
+        return jsonify({'success': True, 'photos': photos})
+    except Exception as e:
+        return _handle_api_error(e)
+
+
+@app.route('/api/nas-albums')
+@login_required
+def api_nas_albums_list():
+    from database import get_nas_albums
+    account_id, err = _require_account_id()
+
+    if err:
+        return err
+
+    albums = get_nas_albums(account_id)
+    result = []
+
+    for a in albums:
+        img_count, cover_path, _ = _scan_image_folder(a['folder_path'])
+        result.append({**a, 'imgCount': img_count, 'coverPath': cover_path})
+
+    return jsonify({'success': True, 'albums': result})
+
+
+@app.route('/api/nas-albums', methods=['POST'])
+@login_required
+def api_nas_albums_create():
+    from database import create_nas_album
+    account_id, err = _require_account_id()
+
+    if err:
+        return err
+
+    data = request.get_json()
+    name = (data or {}).get('name', '').strip()
+    folder_path = (data or {}).get('folder_path', '').strip()
+
+    if not name:
+        return jsonify({'success': False, 'error': '名称不能为空'}), 400
+
+    safe_path = os.path.normpath(os.path.join(IMAGES_DIR, folder_path))
+    if not safe_path.startswith(os.path.normpath(IMAGES_DIR)):
+        return jsonify({'success': False, 'error': '非法路径'}), 400
+
+    if not os.path.isdir(safe_path):
+        return jsonify({'success': False, 'error': '文件夹不存在'}), 400
+
+    album_id = create_nas_album(name, folder_path, account_id)
+    return jsonify({'success': True, 'id': album_id})
+
+
+@app.route('/api/nas-albums/<int:album_id>', methods=['PUT'])
+@login_required
+def api_nas_albums_rename(album_id):
+    from database import rename_nas_album
+    account_id, err = _require_account_id()
+
+    if err:
+        return err
+
+    data = request.get_json()
+    name = (data or {}).get('name', '').strip()
+    if not name:
+        return jsonify({'success': False, 'error': '名称不能为空'}), 400
+
+    if not rename_nas_album(album_id, name, account_id):
+        return jsonify({'success': False, 'error': '相册不存在或无权限'}), 404
+
+    return jsonify({'success': True})
+
+
+@app.route('/api/nas-albums/<int:album_id>', methods=['DELETE'])
+@login_required
+def api_nas_albums_delete(album_id):
+    from database import delete_nas_album
+    account_id, err = _require_account_id()
+
+    if err:
+        return err
+
+    if not delete_nas_album(album_id, account_id):
+        return jsonify({'success': False, 'error': '相册不存在或无权限'}), 404
+
+    return jsonify({'success': True})
+
+
+@app.route('/api/nas-albums/<int:album_id>/photos')
+@login_required
+def api_nas_album_photos(album_id):
+    from database import get_nas_album
+    account_id, err = _require_account_id()
+
+    if err:
+        return err
+
+    album = get_nas_album(album_id, account_id)
+
+    if not album:
+        return jsonify({'success': False, 'error': '相册不存在'}), 404
+
+    _, _, photos = _scan_image_folder(album['folder_path'])
+    return jsonify({'success': True, 'photos': photos})
 
 
 @app.route('/api/upload', methods=['POST'])
@@ -212,7 +383,7 @@ def api_upload():
         result = client.publish_image(device_id, output.read())
         return jsonify({'success': True, 'result': result})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        return _handle_api_error(e)
 
 
 # ── API: File Browser ─────────────────────────────────────────────────────────
@@ -432,4 +603,4 @@ def api_scheduler_reload():
 if __name__ == '__main__':
     os.makedirs(IMAGES_DIR, exist_ok=True)
     os.makedirs(app.config['DATA_DIR'], exist_ok=True)
-    app.run(host='0.0.0.0', port=8080, debug=False)
+    app.run(host='0.0.0.0', port=8080, debug=os.environ.get('FLASK_DEBUG', '0') == '1')

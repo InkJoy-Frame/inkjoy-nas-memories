@@ -6,12 +6,12 @@
 
 InkJoy 有两个面向用户的 Web 应用：
 
-| | NAS 版 | Web 版 |
-|---|---|---|
-| **仓库** | `InkJoy-Frame/inkjoy-nas-memories` | `inkjoy-platform/web-tool` |
-| **技术栈** | Python Flask + SQLite + APScheduler | Vanilla JS SPA + Vite |
-| **部署** | Docker → NAS 设备 | Cloudflare Pages |
-| **核心场景** | 本地文件浏览 + 定时轮播推送 | 云端相册管理 + 手动/自动推送 |
+|          | NAS 版                               | Web 版                      |
+| -------- | ----------------------------------- | -------------------------- |
+| **仓库**   | `InkJoy-Frame/inkjoy-nas-memories`  | `inkjoy-platform/web-tool` |
+| **技术栈**  | Python Flask + SQLite + APScheduler | Vanilla JS SPA + Vite      |
+| **部署**   | Docker → NAS 设备                     | Cloudflare Pages           |
+| **核心场景** | 本地文件浏览 + 定时轮播推送                     | 云端相册管理 + 手动/自动推送           |
 
 两者共享登录、设备管理、图片推送等业务逻辑，但实现语言不同（Python vs JavaScript），无法直接共享代码。
 
