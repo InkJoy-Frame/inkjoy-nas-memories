@@ -1,3 +1,4 @@
+import json
 import os
 import logging
 from datetime import timedelta
@@ -21,7 +22,13 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=365)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 
 IMAGES_DIR = app.config['IMAGES_DIR']
+IMAGES_DIR_NORM = os.path.normpath(IMAGES_DIR)
 IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif'}
+SYSTEM_EXCLUDED_DIRS = {
+    '@eaDir', '@Recycle', '#recycle', '.recycle',
+    '.thumbnails', '.synology_thumbnails', 'thumbs',
+    '.DS_Store', '__MACOSX', 'Thumbs.db',
+}
 
 from database import init_db
 init_db(app)
@@ -91,20 +98,37 @@ def _require_account_id():
     return None, (jsonify({'success': False, 'error': '未登录'}), 401)
 
 
-def _scan_image_folder(folder_path):
-    """扫描 IMAGES_DIR 下的相对路径，返回 (img_count, cover_relative_path, photos_list)。"""
-    folder = os.path.normpath(os.path.join(IMAGES_DIR, folder_path))
+def _get_album_photos(album):
+    """扫描相册包含的所有目录，返回 (img_count, cover, photos)。兼容老格式（仅 folder_path）。"""
+    selected = json.loads(album.get('selected_folders') or 'null') or [album['folder_path']]
+    filter_sys = bool(album.get('filter_system_dirs', 1))
+    return _scan_selected_folders(selected, filter_system_dirs=filter_sys)
 
-    if not folder.startswith(os.path.normpath(IMAGES_DIR)) or not os.path.isdir(folder):
-        return 0, None, []
 
+def _scan_selected_folders(selected_folders, filter_system_dirs=True):
+    """扫描多个选中目录（各自递归），去重后返回 (img_count, cover, photos)。"""
+    seen = set()
     photos = []
 
-    for name in sorted(os.listdir(folder)):
+    for folder_path in selected_folders:
+        folder = os.path.normpath(os.path.join(IMAGES_DIR, folder_path))
 
-        if os.path.splitext(name)[1].lower() in IMAGE_EXTENSIONS:
-            rel = os.path.relpath(os.path.join(folder, name), IMAGES_DIR).replace('\\', '/')
-            photos.append({'name': name, 'path': rel})
+        if not folder.startswith(IMAGES_DIR_NORM) or not os.path.isdir(folder):
+            continue
+
+        for root, dirs, files in os.walk(folder):
+
+            if filter_system_dirs:
+                dirs[:] = [d for d in dirs if d not in SYSTEM_EXCLUDED_DIRS]
+
+            for name in sorted(files):
+
+                if os.path.splitext(name)[1].lower() in IMAGE_EXTENSIONS:
+                    rel = os.path.relpath(os.path.join(root, name), IMAGES_DIR).replace('\\', '/')
+
+                    if rel not in seen:
+                        seen.add(rel)
+                        photos.append({'name': name, 'path': rel})
 
     cover = photos[0]['path'] if photos else None
     return len(photos), cover, photos
@@ -267,7 +291,7 @@ def api_nas_albums_list():
     result = []
 
     for a in albums:
-        img_count, cover_path, _ = _scan_image_folder(a['folder_path'])
+        img_count, cover_path, _ = _get_album_photos(a)
         result.append({**a, 'imgCount': img_count, 'coverPath': cover_path})
 
     return jsonify({'success': True, 'albums': result})
@@ -282,21 +306,30 @@ def api_nas_albums_create():
     if err:
         return err
 
-    data = request.get_json()
-    name = (data or {}).get('name', '').strip()
-    folder_path = (data or {}).get('folder_path', '').strip()
+    data = request.get_json() or {}
+    name = data.get('name', '').strip()
+    selected_folders = data.get('selected_folders', [])
 
     if not name:
         return jsonify({'success': False, 'error': '名称不能为空'}), 400
 
-    safe_path = os.path.normpath(os.path.join(IMAGES_DIR, folder_path))
-    if not safe_path.startswith(os.path.normpath(IMAGES_DIR)):
-        return jsonify({'success': False, 'error': '非法路径'}), 400
+    if not selected_folders:
+        return jsonify({'success': False, 'error': '请至少选择一个文件夹'}), 400
 
-    if not os.path.isdir(safe_path):
-        return jsonify({'success': False, 'error': '文件夹不存在'}), 400
+    for fp in selected_folders:
+        safe = os.path.normpath(os.path.join(IMAGES_DIR, fp))
 
-    album_id = create_nas_album(name, folder_path, account_id)
+        if not safe.startswith(IMAGES_DIR_NORM):
+            return jsonify({'success': False, 'error': '非法路径'}), 400
+
+    filter_system_dirs = 1 if data.get('filter_system_dirs', True) else 0
+    folder_path = selected_folders[0]
+
+    album_id = create_nas_album(
+        name, folder_path, account_id,
+        filter_system_dirs=filter_system_dirs,
+        selected_folders=json.dumps(selected_folders),
+    )
     return jsonify({'success': True, 'id': album_id})
 
 
@@ -349,7 +382,7 @@ def api_nas_album_photos(album_id):
     if not album:
         return jsonify({'success': False, 'error': '相册不存在'}), 404
 
-    _, _, photos = _scan_image_folder(album['folder_path'])
+    _, _, photos = _get_album_photos(album)
     return jsonify({'success': True, 'photos': photos})
 
 
@@ -394,7 +427,7 @@ def api_browse():
     rel_path = request.args.get('path', '')
     safe_path = os.path.normpath(os.path.join(IMAGES_DIR, rel_path))
 
-    if not safe_path.startswith(os.path.normpath(IMAGES_DIR)):
+    if not safe_path.startswith(IMAGES_DIR_NORM):
         return jsonify({'success': False, 'error': '非法路径'}), 400
 
     if not os.path.isdir(safe_path):
@@ -426,7 +459,7 @@ def api_image():
     rel_path = request.args.get('path', '')
     safe_path = os.path.normpath(os.path.join(IMAGES_DIR, rel_path))
 
-    if not safe_path.startswith(os.path.normpath(IMAGES_DIR)):
+    if not safe_path.startswith(IMAGES_DIR_NORM):
         return Response('非法路径', status=400)
     if not os.path.isfile(safe_path):
         return Response('文件不存在', status=404)

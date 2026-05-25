@@ -27,6 +27,10 @@ def init_db(app):
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
             folder_path TEXT NOT NULL,
+            include_subfolders INTEGER DEFAULT 1,
+            exclude_folders TEXT DEFAULT '[]',
+            filter_system_dirs INTEGER DEFAULT 1,
+            selected_folders TEXT,
             account_id INTEGER NOT NULL,
             created_at TEXT DEFAULT (datetime('now'))
         );
@@ -49,6 +53,20 @@ def init_db(app):
             last_error TEXT
         );
     ''')
+    conn.commit()
+
+    cols = {r[1] for r in conn.execute('PRAGMA table_info(nas_albums)').fetchall()}
+
+    for col, defn in [
+        ('include_subfolders', 'INTEGER DEFAULT 1'),
+        ('exclude_folders', "TEXT DEFAULT '[]'"),
+        ('filter_system_dirs', 'INTEGER DEFAULT 1'),
+        ('selected_folders', 'TEXT'),
+    ]:
+
+        if col not in cols:
+            conn.execute(f'ALTER TABLE nas_albums ADD COLUMN {col} {defn}')
+
     conn.commit()
     conn.close()
 
@@ -238,11 +256,12 @@ def get_nas_album(album_id, account_id=None):
     return dict(row) if row else None
 
 
-def create_nas_album(name, folder_path, account_id):
+def create_nas_album(name, folder_path, account_id,
+                     filter_system_dirs=1, selected_folders=None):
     conn = get_db()
     cur = conn.execute(
-        'INSERT INTO nas_albums (name, folder_path, account_id) VALUES (?,?,?)',
-        (name, folder_path, account_id),
+        'INSERT INTO nas_albums (name, folder_path, account_id, filter_system_dirs, selected_folders) VALUES (?,?,?,?,?)',
+        (name, folder_path, account_id, filter_system_dirs, selected_folders),
     )
     album_id = cur.lastrowid
     conn.commit()

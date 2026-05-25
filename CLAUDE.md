@@ -57,11 +57,25 @@ python app.py
 ### 相册管理（NAS 相册 + 云端相册）
 
 `/albums` 页面分两个区块展示相册（方案 B 分区布局）：
-- **NAS 相册**：用户选择 NAS 本地文件夹作为相册源，元数据存 `nas_albums` 表。创建流程两步：输入名称 → 选择文件夹（勾选确认模式）。
+- **NAS 相册**：用户多选 NAS 本地文件夹作为相册源，元数据存 `nas_albums` 表。创建流程两步：输入名称 → 文件夹浏览器多选目录（勾选确认模式）。
 - **云端相册**：从 InkJoy API 拉取，只读浏览。不提供创建云端相册的入口。
 
 弹窗使用自定义 `ink-modal`（`.ink-modal-overlay` + `.ink-modal-box`），不用 Bootstrap Modal，样式对齐 webtool。
-`app.py` 中的 `_require_account_id()` 和 `_scan_image_folder()` 辅助函数服务于所有 NAS 相册端点。
+
+#### NAS 相册数据模型
+
+`nas_albums` 表核心字段：
+- `selected_folders TEXT`：JSON 数组，存储用户勾选的所有目录相对路径
+- `filter_system_dirs INTEGER`：是否排除 NAS 系统目录（`@eaDir`、`.recycle` 等）
+- `folder_path TEXT`：向后兼容字段（= `selected_folders[0]`）
+
+扫描逻辑：`_scan_selected_folders()` 对每个选中目录递归 `os.walk`，去重后返回照片列表。`_get_album_photos()` 兼容新老格式（老数据无 `selected_folders` 时回退到 `folder_path`）。
+
+#### 文件夹选择器 UI
+
+前端状态集中在 `picker` 对象（`albums.html`）。两个 toggle 开关（右端对齐，webtool 风格）：
+- **包含子目录里的照片**（默认开）：勾选父目录时自动勾选可见子目录，仅影响 UI 默认勾选行为
+- **排除干扰项目**（默认开）：tooltip 说明跳过的系统目录列表
 
 ### 认证与 401 处理
 

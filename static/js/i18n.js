@@ -76,6 +76,9 @@ const I18N = {
     'albums.modal.create':     'Create',
     'albums.modal.folder.title': 'Select Folder',
     'albums.folder.root':      'Photos Root',
+    'albums.opt.include_sub':  'Include photos in subfolders',
+    'albums.opt.filter_sys':   'Exclude system folders',
+    'albums.opt.filter_sys.tip': 'Auto-skip NAS system folders: @eaDir, .recycle, #recycle, thumbs, .thumbnails, etc. These are typically thumbnail caches or recycle bins created by Synology/QNAP.',
 
     /* ── Upload ───────────────────────────────────── */
     'up.title':          'Upload Image to Device',
@@ -232,6 +235,9 @@ const I18N = {
     'albums.modal.create':     '创建',
     'albums.modal.folder.title': '选择文件夹',
     'albums.folder.root':      '照片根目录',
+    'albums.opt.include_sub':  '包含子目录里的照片',
+    'albums.opt.filter_sys':   '排除干扰项目',
+    'albums.opt.filter_sys.tip': '自动跳过 NAS 系统文件夹：@eaDir、.recycle、#recycle、thumbs、.thumbnails 等。这些通常是群晖/威联通自动生成的缩略图缓存或回收站。',
 
     /* ── Upload ───────────────────────────────────── */
     'up.title':          '上传图片到设备',

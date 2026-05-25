@@ -269,24 +269,42 @@ async function openNewAlbumModal() {
   showFolderPicker(name);
 }
 
-let _pickerAlbumName = '';
-let _pickerSelectedPath = null;
+const picker = {
+  albumName: '',
+  selected: new Set(),
+  includeSubfolders: true,
+  filterSystemDirs: true,
+  visibleDirs: [],
+  currentViewPath: '',
+};
 
 function showFolderPicker(albumName) {
-  _pickerAlbumName = albumName;
-  _pickerSelectedPath = null;
+  picker.albumName = albumName;
+  picker.selected = new Set();
+  picker.includeSubfolders = true;
+  picker.filterSystemDirs = true;
 
   const bodyHtml = `
     <div class="folder-browser-inline">
       <nav class="folder-breadcrumb" id="folderBreadcrumb"></nav>
       <div class="folder-list" id="folderList"></div>
+    </div>
+    <div class="folder-options">
+      <label class="folder-option">
+        <span>${t('albums.opt.include_sub')}</span>
+        <span class="toggle-switch"><input type="checkbox" id="optIncludeSubfolders" checked onchange="toggleIncludeSubfolders(this.checked)"><span class="toggle-slider"></span></span>
+      </label>
+      <label class="folder-option">
+        <span>${t('albums.opt.filter_sys')}<span class="folder-option-help" title="${t('albums.opt.filter_sys.tip')}">?</span></span>
+        <span class="toggle-switch"><input type="checkbox" id="optFilterSystemDirs" checked onchange="toggleFilterSystemDirs(this.checked)"><span class="toggle-slider"></span></span>
+      </label>
     </div>`;
 
   inkModalShow(t('albums.modal.folder.title'), bodyHtml, [
     { label: t('albums.modal.cancel'), cls: 'ink-btn-secondary', onClick: inkModalCancel },
     { label: t('albums.modal.ok'), cls: 'ink-btn-primary', onClick: () => {
-      if (_pickerSelectedPath === null) return;
-      confirmCreateAlbum(_pickerAlbumName, _pickerSelectedPath);
+      if (picker.selected.size === 0) return;
+      confirmCreateAlbum(picker.albumName);
     }},
   ]);
 
@@ -294,20 +312,53 @@ function showFolderPicker(albumName) {
   browseFolders('', albumName);
 }
 
+function toggleIncludeSubfolders(checked) {
+  picker.includeSubfolders = checked;
+
+  if (checked && picker.selected.has(picker.currentViewPath)) {
+    picker.visibleDirs.forEach(d => picker.selected.add(d.path));
+  }
+
+  refreshAllChecks();
+}
+
+function toggleFilterSystemDirs(checked) {
+  picker.filterSystemDirs = checked;
+}
+
+function refreshAllChecks() {
+  document.querySelectorAll('.folder-check').forEach(el => {
+    el.classList.toggle('checked', picker.selected.has(el.dataset.path));
+  });
+}
+
 function updatePickerOkBtn() {
   const btns = document.querySelectorAll('#inkModalFooter .ink-btn-primary');
   const okBtn = btns[btns.length - 1];
+
   if (okBtn) {
-    okBtn.disabled = _pickerSelectedPath === null;
-    okBtn.style.opacity = _pickerSelectedPath === null ? '.4' : '';
+    okBtn.disabled = picker.selected.size === 0;
+    okBtn.style.opacity = picker.selected.size === 0 ? '.4' : '';
   }
 }
 
-function selectPickerFolder(path) {
-  _pickerSelectedPath = path;
-  document.querySelectorAll('.folder-check').forEach(el => {
-    el.classList.toggle('checked', el.dataset.path === path);
-  });
+function toggleFolderSelection(path) {
+
+  if (picker.selected.has(path)) {
+    picker.selected.delete(path);
+
+    if (picker.includeSubfolders && path === picker.currentViewPath) {
+      picker.visibleDirs.forEach(d => picker.selected.delete(d.path));
+    }
+  } else {
+    picker.selected.add(path);
+
+    if (picker.includeSubfolders && path === picker.currentViewPath) {
+      picker.visibleDirs.forEach(d => picker.selected.add(d.path));
+    }
+  }
+
+  refreshAllChecks();
   updatePickerOkBtn();
 }
 
@@ -329,12 +380,14 @@ async function browseFolders(path, albumName) {
   const dirs = data.items.filter(i => i.type === 'dir');
   const imgCount = data.items.filter(i => i.type === 'image').length;
   const curLabel = parts.length ? parts[parts.length - 1] : t('albums.folder.root');
-  const checkedCls = p => _pickerSelectedPath === p ? 'checked' : '';
+  picker.currentViewPath = path;
+  picker.visibleDirs = dirs;
 
+  const ck = p => picker.selected.has(p) ? 'checked' : '';
   let html = '';
 
-  html += `<div class="folder-item folder-item-current" onclick="selectPickerFolder('${esc(path)}')">
-    <span class="folder-check ${checkedCls(path)}" data-path="${esc(path)}"></span>
+  html += `<div class="folder-item folder-item-current" onclick="toggleFolderSelection('${esc(path)}')">
+    <span class="folder-check ${ck(path)}" data-path="${esc(path)}"></span>
     <span class="folder-item-label">📂 ${esc(curLabel)}</span>
     <span class="folder-item-meta">${imgCount ? '📷 ' + imgCount : ''}</span>
   </div>`;
@@ -348,7 +401,7 @@ async function browseFolders(path, albumName) {
 
   dirs.forEach(d => {
     html += `<div class="folder-item folder-item-sub">
-      <span class="folder-check ${checkedCls(d.path)}" data-path="${esc(d.path)}" onclick="event.stopPropagation();selectPickerFolder('${esc(d.path)}')"></span>
+      <span class="folder-check ${ck(d.path)}" data-path="${esc(d.path)}" onclick="event.stopPropagation();toggleFolderSelection('${esc(d.path)}')"></span>
       <span class="folder-item-label" onclick="browseFolders('${d.path}','${esc(albumName)}')">📁 ${esc(d.name)}</span>
     </div>`;
   });
@@ -356,11 +409,17 @@ async function browseFolders(path, albumName) {
   document.getElementById('folderList').innerHTML = html;
 }
 
-async function confirmCreateAlbum(name, folderPath) {
+async function confirmCreateAlbum(name) {
+  const selectedFolders = Array.from(picker.selected);
+
   const resp = await fetch('/api/nas-albums', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({name, folder_path: folderPath}),
+    body: JSON.stringify({
+      name,
+      selected_folders: selectedFolders,
+      filter_system_dirs: picker.filterSystemDirs,
+    }),
   });
   const data = await resp.json();
 

@@ -1141,6 +1141,63 @@ body {
 }
 .folder-check.checked::after { color: #fff; }
 
+/* 文件夹选项区 */
+.folder-options {
+  display: flex; flex-direction: column; gap: 8px;
+  margin-top: 12px; padding: 0 4px;
+}
+.folder-option {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 13px; color: #475569; cursor: pointer;
+  user-select: none;
+  text-decoration: none;
+}
+.folder-option input[type="checkbox"] { display: none; }
+
+/* Toggle 开关 */
+.toggle-switch {
+  position: relative; display: inline-block;
+  width: 40px; height: 22px; flex-shrink: 0;
+}
+.toggle-slider {
+  position: absolute; inset: 0; cursor: pointer;
+  background: #cbd5e1; border-radius: 11px;
+  transition: background .2s;
+}
+.toggle-slider::before {
+  content: ''; position: absolute;
+  width: 18px; height: 18px; left: 2px; top: 2px;
+  background: #fff; border-radius: 50%;
+  transition: transform .2s;
+}
+.toggle-switch input:checked + .toggle-slider { background: var(--ink); }
+.toggle-switch input:checked + .toggle-slider::before { transform: translateX(18px); }
+.folder-option-help {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 1.5px solid #94a3b8; color: #94a3b8;
+  font-size: 11px; font-weight: 700; cursor: help;
+  flex-shrink: 0; position: relative;
+}
+.folder-option-help:hover { border-color: var(--ink); color: var(--ink); }
+.folder-option-help { position: relative; margin-left: 4px; vertical-align: middle; }
+.folder-option-help::before {
+  content: attr(title); position: absolute;
+  bottom: calc(100% + 6px); left: -8px;
+  background: #1e293b; color: #fff; font-size: 12px; font-weight: 400;
+  padding: 8px 12px; border-radius: 6px; white-space: pre-line;
+  width: 260px; line-height: 1.5; pointer-events: none;
+  opacity: 0; transition: opacity .2s; z-index: 10;
+}
+.folder-option-help::after {
+  content: ''; position: absolute;
+  bottom: calc(100% + 2px); left: 4px;
+  border: 5px solid transparent; border-top-color: #1e293b;
+  pointer-events: none; opacity: 0; transition: opacity .2s;
+}
+.folder-option-help:hover::before,
+.folder-option-help:hover::after { opacity: 1; }
+
 /* ── 图片裁切器 ─────────────────────────────────────────────────────────── */
 .cropper-view-box,
 .cropper-face { border-radius: 0; }
