@@ -1,0 +1,261 @@
+{% extends 'base.html' %}
+{% block title %}InkJoy NAS{% endblock %}
+
+{% block content %}
+<!-- 相册列表区块 -->
+<div class="content-card">
+  <div class="content-card-header">
+    <div>
+      <div class="content-card-title" data-i18n="home.albums.title">NAS Albums</div>
+      <div class="content-card-subtitle" data-i18n="home.albums.subtitle">Select local folders as albums. Bind a frame to auto-push photos daily.</div>
+    </div>
+    <button class="btn-sm-primary" onclick="openWizard()" data-i18n="home.albums.new">+ New Album</button>
+  </div>
+  <div class="content-card-body" id="albumList">
+    <!-- 动态渲染 -->
+  </div>
+</div>
+
+<!-- 快速推送区块 -->
+<div class="content-card">
+  <div class="content-card-header">
+    <div>
+      <div class="content-card-title" data-i18n="home.push.title">Quick Push</div>
+      <div class="content-card-subtitle" data-i18n="home.push.subtitle">Push a single photo to your frame — no schedule needed.</div>
+    </div>
+  </div>
+  <div class="content-card-body">
+    <div class="quick-push-entry" onclick="openQuickPush()" data-i18n="home.push.browse">Browse & Push</div>
+  </div>
+</div>
+
+<!-- 自定义 Modal -->
+<div id="inkModal" class="ink-modal-overlay" style="display:none" onclick="if(event.target===this)inkModalCancel()">
+  <div class="ink-modal-box">
+    <div class="ink-modal-title" id="inkModalTitle"></div>
+    <div class="ink-modal-body" id="inkModalBody"></div>
+    <div class="ink-modal-footer" id="inkModalFooter"></div>
+  </div>
+</div>
+
+<!-- Lightbox -->
+<div id="photoLightbox" class="photo-lightbox d-none" onclick="closeLightbox()">
+  <img id="lightboxImg" src="" alt="">
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── 全局状态 ─────────────────────────────────────────────────────────────────
+let albumsData = [];
+let schedulerJobsCache = {};
+
+// ── 工具函数 ─────────────────────────────────────────────────────────────────
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// ── Modal 系统（对齐 webtool / albums.html） ─────────────────────────────────
+
+let _inkModalResolve = null;
+
+function inkModalShow(title, bodyHtml, actions) {
+  document.getElementById('inkModalTitle').textContent = title;
+  document.getElementById('inkModalBody').innerHTML = bodyHtml;
+
+  const footer = document.getElementById('inkModalFooter');
+  footer.innerHTML = '';
+  actions.forEach(a => {
+    const btn = document.createElement('button');
+    btn.className = 'ink-btn ' + (a.cls || '');
+    btn.textContent = a.label;
+    btn.onclick = a.onClick;
+    footer.appendChild(btn);
+  });
+
+  document.getElementById('inkModal').style.display = '';
+}
+
+function inkModalHide() {
+  document.getElementById('inkModal').style.display = 'none';
+  if (_inkModalResolve) { _inkModalResolve(null); _inkModalResolve = null; }
+}
+
+function inkModalCancel() { inkModalHide(); }
+
+function inkPrompt(title, placeholder, defaultValue) {
+  return new Promise(resolve => {
+    _inkModalResolve = resolve;
+
+    const submit = () => {
+      const val = document.getElementById('ink-modal-input')?.value.trim();
+      _inkModalResolve = null;
+      inkModalHide();
+      resolve(val || null);
+    };
+
+    inkModalShow(title,
+      `<input type="text" id="ink-modal-input" class="ink-modal-input"
+        placeholder="${esc(placeholder)}" value="${esc(defaultValue || '')}" maxlength="50">`,
+      [
+        { label: t('albums.modal.cancel'), cls: 'ink-btn-secondary', onClick: () => { _inkModalResolve = null; inkModalHide(); resolve(null); } },
+        { label: t('albums.modal.ok'), cls: 'ink-btn-primary', onClick: submit },
+      ]
+    );
+
+    setTimeout(() => {
+      const input = document.getElementById('ink-modal-input');
+      if (input) { input.focus(); input.select(); input.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); }); }
+    }, 50);
+  });
+}
+
+function inkConfirm(title, message) {
+  return new Promise(resolve => {
+    _inkModalResolve = resolve;
+
+    inkModalShow(title,
+      `<p style="margin:0;white-space:pre-line">${esc(message)}</p>`,
+      [
+        { label: t('albums.modal.cancel'), cls: 'ink-btn-secondary', onClick: () => { _inkModalResolve = null; inkModalHide(); resolve(false); } },
+        { label: t('albums.modal.ok'), cls: 'ink-btn-danger', onClick: () => { _inkModalResolve = null; inkModalHide(); resolve(true); } },
+      ]
+    );
+  });
+}
+
+// ── 相册列表加载 ─────────────────────────────────────────────────────────────
+
+async function loadAlbums() {
+  const [albumsResp, statusResp] = await Promise.all([
+    fetch('/api/nas-albums').then(r => r.json()),
+    fetch('/api/scheduler/status').then(r => r.json()).catch(() => ({jobs: []})),
+  ]);
+
+  schedulerJobsCache = {};
+  (statusResp.jobs || []).forEach(j => { schedulerJobsCache[j.id] = j.next_run; });
+
+  const albums = albumsResp.success ? albumsResp.albums : [];
+  const schedPromises = albums.map(a =>
+    fetch(`/api/nas-albums/${a.id}/schedules`).then(r => r.json()).catch(() => ({schedules: []}))
+  );
+  const schedResults = await Promise.all(schedPromises);
+
+  albumsData = albums.map((a, i) => ({...a, schedules: schedResults[i].schedules || []}));
+
+  renderAlbums();
+}
+
+// ── 相册列表渲染 ─────────────────────────────────────────────────────────────
+
+function renderAlbums() {
+  const el = document.getElementById('albumList');
+
+  if (!albumsData.length) {
+    el.innerHTML = `<div class="album-add-card" onclick="openWizard()">+ ${t('home.albums.new')}</div>`;
+    return;
+  }
+
+  el.innerHTML = albumsData.map(a => renderAlbumCard(a)).join('')
+    + `<div class="album-add-card" onclick="openWizard()">+ ${t('home.albums.new')}</div>`;
+}
+
+// ── 单张相册卡片 ─────────────────────────────────────────────────────────────
+
+function renderAlbumCard(album) {
+  const coverHtml = album.coverPath
+    ? `<img src="/api/image?path=${encodeURIComponent(album.coverPath)}&thumb=true" alt="" loading="lazy">`
+    : '<span style="font-size:18px;color:#bbb">🖼️</span>';
+
+  let folderCount = 1;
+  try { folderCount = JSON.parse(album.selected_folders || '[]').length || 1; } catch(e) {}
+
+  const bindingsHtml = album.schedules.length
+    ? album.schedules.map(s => renderBindingRow(s)).join('')
+    : `<div class="binding-empty">${t('bind.empty')}</div>`;
+
+  return `
+    <div class="album-item">
+      <div class="album-item-header">
+        <div class="album-item-info">
+          <div class="album-item-thumb">${coverHtml}</div>
+          <div>
+            <div class="album-item-name" title="${esc(album.name)}">${esc(album.name)}</div>
+            <div class="album-item-meta">📷 ${album.imgCount ?? 0} · ${folderCount} ${getLang() === 'zh' ? '个文件夹' : (folderCount === 1 ? 'folder' : 'folders')}</div>
+          </div>
+        </div>
+        <div class="album-item-actions">
+          <button class="btn-sm-outline" onclick="addBinding(${album.id})" data-i18n="bind.add">+ Bind Frame</button>
+          <button style="background:none;border:none;color:#999;font-size:14px;cursor:pointer;padding:4px" onclick="event.stopPropagation();showAlbumMenu(event,${album.id},'${esc(album.name)}')" title="⋮">⋮</button>
+        </div>
+      </div>
+      <div class="binding-list">${bindingsHtml}</div>
+    </div>`;
+}
+
+// ── 设备绑定行渲染 ───────────────────────────────────────────────────────────
+
+function resizeLabel(m) {
+  return ({
+    blur: t('sched.resize.blur.short'),
+    isfr: t('sched.resize.isfr.short'),
+    crop: t('sched.resize.crop.short'),
+  })[m] || m;
+}
+
+function fmtNextRun(isoStr) {
+  if (!isoStr) return null;
+  try { return new Date(isoStr).toLocaleString(); } catch(_) { return isoStr; }
+}
+
+function renderBindingRow(s) {
+  const jobKey = `schedule_${s.id}`;
+  const nextRun = s.enabled ? schedulerJobsCache[jobKey] : null;
+  const nextHtml = nextRun ? `<span style="color:#4caf50">${t('bind.next')} ${fmtNextRun(nextRun)}</span>` : '';
+
+  const statusBadge = s.last_status === 'success'
+    ? `<span class="badge bg-success" style="font-size:10px">${t('sched.badge.ok')}</span>`
+    : s.last_status === 'error'
+      ? `<span class="badge bg-danger" style="font-size:10px">${t('sched.badge.err')}</span>`
+      : `<span class="badge bg-secondary" style="font-size:10px">${t('sched.badge.never')}</span>`;
+
+  return `
+    <div class="binding-row ${s.enabled ? '' : 'disabled'}">
+      <div>
+        <div class="binding-device">${esc(s.device_name || s.device_id)}</div>
+        <div class="binding-detail">${t('bind.daily')} ${s.schedule_time} · ${resizeLabel(s.resize_mode)} ${nextHtml}</div>
+      </div>
+      <div class="binding-status">
+        ${statusBadge}
+        <label class="toggle-switch" style="margin:0">
+          <input type="checkbox" ${s.enabled ? 'checked' : ''} onchange="toggleBinding(${s.id},this.checked)">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>`;
+}
+
+// ── Lightbox ─────────────────────────────────────────────────────────────────
+
+function openLightbox(url) {
+  document.getElementById('lightboxImg').src = url;
+  document.getElementById('photoLightbox').classList.remove('d-none');
+}
+
+function closeLightbox() {
+  document.getElementById('photoLightbox').classList.add('d-none');
+  document.getElementById('lightboxImg').src = '';
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+
+// ── 占位函数（后续 Task 实现） ───────────────────────────────────────────────
+
+function openWizard() { alert('TODO: Task 7'); }
+function addBinding(albumId) { alert('TODO: Task 8'); }
+function showAlbumMenu(event, albumId, albumName) { alert('TODO: Task 8'); }
+function toggleBinding(scheduleId, enabled) { alert('TODO: Task 8'); }
+function openQuickPush() { alert('TODO: Task 9'); }
+
+// ── 初始化 ───────────────────────────────────────────────────────────────────
+loadAlbums();
+</script>
+{% endblock %}
