@@ -303,100 +303,236 @@ body {
 }
 .btn-logout:hover { color: white; border-color: rgba(255,255,255,0.5); }
 
-/* ── 主布局（侧边栏 + 内容区）────────────────────────────────────────────── */
-.app-layout {
-  display: flex;
-  flex: 1;
-  min-height: calc(100vh - 60px);
-}
-.sidebar {
-  width: 200px;
-  background: #1e4538;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  padding: 1rem 0.75rem;
-  flex-shrink: 0;
-}
-.sidebar-section-label {
-  font-size: 0.62rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: rgba(255,255,255,0.35);
-  padding: 0.5rem 0.75rem 0.25rem;
-}
-.nav-item {
+/* ── 导航栏居中 ────────────────────────────────────────────────────────── */
+.navbar-inner {
+  max-width: 800px;
+  margin: 0 auto;
+  width: 100%;
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.6rem 0.75rem;
-  border-radius: 0.5rem;
-  font-size: 0.875rem;
-  color: rgba(255,255,255,0.55);
-  text-decoration: none;
+}
+.navbar-inner .navbar-right { margin-left: auto; }
+
+/* ── 单页主内容区 ──────────────────────────────────────────────────────── */
+.page-content {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 1.25rem 1rem;
+  min-height: calc(100vh - 60px);
+}
+
+/* ── 内容区块卡片 ──────────────────────────────────────────────────────── */
+.content-card {
+  background: #fff;
+  border-radius: .75rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  margin-bottom: 1.25rem;
+}
+.content-card-header {
+  padding: .875rem 1rem;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.content-card-title {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--ink);
+}
+.content-card-subtitle {
+  font-size: 12px;
+  color: #999;
+  margin-top: 2px;
+}
+.content-card-body { padding: .75rem 1rem; }
+
+/* ── 相册子卡片（含设备绑定） ──────────────────────────────────────────── */
+.album-item {
+  border: 1px solid #e8e8e8;
+  border-radius: .5rem;
+  margin-bottom: .75rem;
+  overflow: hidden;
+}
+.album-item-header {
+  padding: .625rem .875rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fafffe;
+}
+.album-item-info {
+  display: flex;
+  align-items: center;
+  gap: .625rem;
+  min-width: 0;
+}
+.album-item-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #e8e8e8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.album-item-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.album-item-name {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.album-item-meta {
+  font-size: 11px;
+  color: #999;
+}
+.album-item-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* ── 设备绑定行 ────────────────────────────────────────────────────────── */
+.binding-list { padding: 0 .875rem .625rem; }
+.binding-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: .5rem .625rem;
+  margin-top: .375rem;
+  background: #f8faf9;
+  border-radius: 6px;
+  border-left: 3px solid #4caf50;
+}
+.binding-row.disabled {
+  opacity: .5;
+  border-left-color: #ccc;
+}
+.binding-device { font-size: 12px; font-weight: 500; }
+.binding-detail { font-size: 11px; color: #888; }
+.binding-status {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-shrink: 0;
+}
+.binding-empty {
+  text-align: center;
+  padding: .5rem;
+  color: #bbb;
+  font-size: 11px;
+}
+
+/* ── 新建相册虚线入口 ──────────────────────────────────────────────────── */
+.album-add-card {
+  border: 2px dashed #d0d0d0;
+  border-radius: .5rem;
+  padding: 1rem;
+  text-align: center;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  color: #999;
+  font-size: 13px;
+  transition: border-color .2s, color .2s;
 }
-.nav-item:hover {
-  background: rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.9);
+.album-add-card:hover {
+  border-color: var(--ink);
+  color: var(--ink);
 }
-.nav-item.active {
-  background: rgba(255,255,255,0.13);
-  color: white;
+
+/* ── 快速推送区 ────────────────────────────────────────────────────────── */
+.quick-push-entry {
+  border: 2px dashed #c8e6c9;
+  border-radius: .5rem;
+  padding: 1.25rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .2s, background .2s;
+}
+.quick-push-entry:hover {
+  border-color: var(--ink);
+  background: #f0f7f4;
+}
+
+/* ── 小型操作按钮 ──────────────────────────────────────────────────────── */
+.btn-sm-outline {
+  background: none;
+  border: 1px solid var(--ink);
+  color: var(--ink);
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.btn-sm-outline:hover {
+  background: var(--ink);
+  color: #fff;
+}
+.btn-sm-primary {
+  background: var(--ink);
+  color: #fff;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s;
+}
+.btn-sm-primary:hover { background: var(--ink-dark); }
+
+/* ── 向导步骤 ──────────────────────────────────────────────────────────── */
+.wizard-step {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #eee;
+}
+.wizard-step-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: .5rem;
+}
+
+/* ── 设备多选网格 ──────────────────────────────────────────────────────── */
+.device-pick-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+.device-pick-item {
+  border: 1.5px solid #e2e8f0;
+  border-radius: .5rem;
+  padding: .5rem .75rem;
+  cursor: pointer;
+  font-size: 12px;
+  transition: border-color .15s, background .15s;
+  display: flex;
+  align-items: center;
+  gap: .375rem;
+}
+.device-pick-item:hover { border-color: var(--ink); }
+.device-pick-item.picked {
+  border-color: var(--ink);
+  background: var(--ink-light);
   font-weight: 600;
 }
-.nav-icon { font-size: 1rem; flex-shrink: 0; }
-.nav-label { flex: 1; }
-.main-content {
-  flex: 1;
-  padding: 1.5rem 2rem;
-  min-width: 0;
-  background: var(--surface);
-}
 
-/* ── 侧边栏响应式 ──────────────────────────────────────────────────────── */
+/* ── 响应式（移动端）─────────────────────────────────────────────────── */
 @media (max-width: 767px) {
-  .app-layout { flex-direction: column; }
-  .sidebar {
-    width: 100%;
-    flex-direction: row;
-    padding: 0;
-    border-right: none;
-    gap: 0;
-  }
-  .sidebar-section-label { display: none; }
-  .nav-item {
-    flex: 1;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 0.5rem 0.25rem;
-    font-size: 0.68rem;
-    border-radius: 0;
-    text-align: center;
-    gap: 0.2rem;
-  }
-  .nav-item.active {
-    background: none;
-    border-bottom: 2px solid rgba(255,255,255,0.6);
-  }
-  .nav-icon { font-size: 1.2rem; }
-  .main-content { padding: 1rem; }
-
-  /* 设备卡片 + section-card 响应式 */
-  .section-card { padding: 1.25rem; border-radius: 1rem; }
-  .device-card { width: 150px; padding: 0.75rem 0.5rem 0.625rem; }
-  .device-card-frame-box { width: 118px; height: 118px; }
-  .device-grid { gap: 0.625rem; }
-  .home-hint-title { font-size: 0.95rem; }
-  .home-hint-sub { font-size: 0.78rem; }
-  .home-chip { font-size: 0.72rem; padding: 0.2rem 0.3rem 0.2rem 0.55rem; }
-  .home-chip-name { max-width: 8rem; }
-  .image-source-picker { flex-direction: column; min-height: auto; }
-  .source-divider { width: auto; height: 1px; }
+  .page-content { padding: .75rem .5rem; }
+  .content-card-header { flex-wrap: wrap; gap: .5rem; }
+  .album-item-header { flex-wrap: wrap; gap: .5rem; }
 }
+
 
 /* ── Bootstrap 卡片覆盖 ─────────────────────────────────────────────────── */
 .card {
@@ -435,374 +571,8 @@ body {
   gap: 0.6rem;
 }
 
-/* ── 设备网格 ──────────────────────────────────────────────────────────── */
-.device-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-.home-device-grid { margin-bottom: 1.5rem; }
 
-/* ── 设备卡片（画框风格）───────────────────────────────────────────────── */
-.device-card {
-  position: relative;
-  border: 2px solid #e2e8f0;
-  border-radius: 0.75rem;
-  padding: 0.875rem 0.75rem 0.75rem;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0;
-  width: 168px;
-  flex: 0 0 auto;
-  background: white;
-}
-.device-card:hover { border-color: var(--ink); background: #eef2ef; }
-.device-card:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
-.device-card.selected {
-  border-color: var(--ink);
-  background: #eef2ef;
-  box-shadow: 0 0 0 3px rgba(30,77,59,0.15);
-}
 
-/* 相框显示区 */
-.device-card-frame-box {
-  width: 128px;
-  height: 128px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.device-card-frame {
-  box-sizing: border-box;
-  position: relative;
-  overflow: hidden;
-  border: 2px solid #8a5a2b;
-  background: #d4d4d4;
-  box-shadow: inset 0 0 0 2px #f5f1dc;
-  border-radius: 2px;
-}
-.frame-thumb {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
-}
-.frame-thumb-rot {
-  inset: auto;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%) rotate(-90deg);
-}
-.device-card-frame.is-landscape { width: calc(100% - 12px); height: auto; }
-.device-card-frame.is-portrait  { height: calc(100% - 12px); width: auto; }
-
-/* 设备名 */
-.device-card-name {
-  width: 100%;
-  text-align: center;
-  font-weight: 600;
-  font-size: 0.92rem;
-  line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-top: 0.7rem;
-}
-
-/* 状态行 */
-.device-card-status {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  margin-top: 0.3rem;
-  font-size: 0.74rem;
-  color: #64748b;
-}
-.status-online, .status-offline {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-}
-.status-online::before, .status-offline::before {
-  content: '';
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-}
-.status-online::before {
-  background: #34c759;
-  box-shadow: 0 0 0 2px rgba(52,199,89,0.22);
-}
-.status-offline { color: #ef4444; font-weight: 600; }
-.status-offline::before { background: #ef4444; }
-.status-sep { color: #cbd5e1; }
-
-/* 电池图标 */
-.battery { display: inline-flex; align-items: center; gap: 0.3rem; }
-.battery-icon {
-  position: relative;
-  width: 20px; height: 10px;
-  border: 1.3px solid currentColor;
-  border-radius: 2.5px;
-  opacity: 0.85;
-}
-.battery-icon::after {
-  content: '';
-  position: absolute;
-  right: -3px; top: 50%;
-  transform: translateY(-50%);
-  width: 2px; height: 4px;
-  background: currentColor;
-  border-radius: 0 1px 1px 0;
-}
-.battery-fill {
-  position: absolute;
-  left: 1.3px; right: 1.3px; top: 1.3px; bottom: 1.3px;
-  background: currentColor;
-  border-radius: 1px;
-  transform-origin: left center;
-  transition: transform 0.3s;
-}
-.battery.ok { color: #34c759; }
-.battery.warn { color: #f59e0b; }
-.battery.danger { color: #ef4444; font-weight: 600; }
-
-/* 离线 Wi-Fi 徽章 */
-.wifi-off-badge {
-  position: absolute;
-  top: 4px; left: 4px;
-  width: 18px; height: 18px;
-  background: #ef4444;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.25);
-  pointer-events: none;
-}
-.wifi-off-badge svg { width: 11px; height: 11px; }
-
-/* 选中角标 */
-.selected-badge {
-  position: absolute;
-  top: 6px; right: 6px;
-  width: 18px; height: 18px;
-  background: var(--ink);
-  border-radius: 50%;
-  display: none;
-  align-items: center;
-  justify-content: center;
-}
-.device-card.selected .selected-badge { display: flex; }
-.selected-badge::after { content: '✓'; color: white; font-size: 0.65rem; font-weight: 700; }
-
-/* ── Home Hint 区（标题 + 已选芯片 + 操作按钮）──────────────────────────── */
-.home-hint {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-.home-hint-text { flex: 1; min-width: 0; }
-.home-hint-title { font-size: 1rem; font-weight: 600; line-height: 1.2; }
-.home-hint-sub {
-  font-size: 0.82rem;
-  color: #64748b;
-  margin-top: 3px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.home-hint-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-shrink: 0;
-}
-.home-hint-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-top: 0.5rem;
-}
-.home-hint-chips[hidden] { display: none; }
-.home-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  background: #eef2ef;
-  color: #1e4538;
-  border: 1px solid rgba(30,77,59,0.18);
-  padding: 0.25rem 0.35rem 0.25rem 0.7rem;
-  border-radius: 999px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  max-width: 100%;
-  line-height: 1.2;
-}
-.home-chip-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 12rem;
-}
-.home-chip-x {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px; height: 18px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(30,77,59,0.15);
-  color: #1e4538;
-  cursor: pointer;
-  font-size: 0.85rem;
-  line-height: 1;
-  padding: 0;
-  flex-shrink: 0;
-  transition: background 0.15s, color 0.15s;
-}
-.home-chip-x:hover { background: var(--ink-dark); color: white; }
-
-/* ── Push Panel 锁定层 ──────────────────────────────────────────────────── */
-.push-panel-body { position: relative; min-height: 280px; }
-.panel-lock-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(255,255,255,0.78);
-  backdrop-filter: blur(2px);
-  border-radius: 0.75rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 5;
-  cursor: pointer;
-  transition: opacity 0.2s;
-  padding: 1rem;
-}
-.push-panel.unlocked .panel-lock-overlay { display: none; }
-.panel-lock-overlay:hover .panel-lock-card {
-  border-color: var(--ink);
-  transform: translateY(-2px);
-  box-shadow: 0 10px 28px rgba(30,77,59,0.18);
-}
-.panel-lock-card {
-  background: white;
-  border: 2px dashed #cbd5e1;
-  border-radius: 1rem;
-  padding: 1.5rem 2rem;
-  text-align: center;
-  max-width: 380px;
-  box-shadow: 0 4px 18px rgba(30,77,59,0.08);
-  transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
-  pointer-events: none;
-}
-.panel-lock-title { font-size: 1.05rem; font-weight: 700; color: #1e293b; }
-
-/* 脉冲引导动画 */
-@keyframes hintFlash {
-  0%, 100% { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-  50% { box-shadow: 0 0 0 6px rgba(30,77,59,0.25), 0 4px 14px rgba(30,77,59,0.18); }
-}
-.section-card.flash { animation: hintFlash 0.9s ease; }
-
-/* ── 图片来源选择器 ────────────────────────────────────────────────────── */
-.image-source-picker {
-  display: flex;
-  gap: 0;
-  align-items: stretch;
-  border: 2px dashed #cbd5e1;
-  border-radius: 0.75rem;
-  overflow: hidden;
-  min-height: 300px;
-}
-.source-divider {
-  width: 1px;
-  background: #cbd5e1;
-  flex-shrink: 0;
-}
-.upload-zone {
-  flex: 1;
-  padding: 1.25rem 1rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: background 0.2s, color 0.2s;
-  color: #64748b;
-  text-align: center;
-}
-.upload-zone:hover { background: #eef2ef; color: var(--ink); }
-.upload-zone-label {
-  font-size: 1rem;
-  font-weight: 600;
-  color: #475569;
-  margin-bottom: 0.75rem;
-}
-.upload-icon-big { font-size: 3rem; margin-bottom: 0.75rem; display: block; }
-.album-source-panel {
-  flex: 1;
-  padding: 1.25rem 1rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  overflow: hidden;
-}
-.album-source-label {
-  font-size: 1rem;
-  font-weight: 600;
-  color: #475569;
-  text-align: center;
-  margin-bottom: 0.75rem;
-  flex-shrink: 0;
-}
-
-/* ── 图标按钮 ──────────────────────────────────────────────────────────── */
-.icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px; height: 34px;
-  border-radius: 0.5rem;
-  border: 1.5px solid #e2e8f0;
-  background: white;
-  cursor: pointer;
-  font-size: 1rem;
-  color: #64748b;
-  transition: border-color 0.15s, color 0.15s;
-  padding: 0;
-}
-.icon-btn:hover { border-color: var(--ink); color: var(--ink); }
-
-/* ── 辅助按钮 ──────────────────────────────────────────────────────────── */
-.btn-secondary-custom {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.35rem 0.75rem;
-  border-radius: 0.5rem;
-  border: 1.5px solid #e2e8f0;
-  background: white;
-  color: #64748b;
-  font-size: 0.8rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
-}
-.btn-secondary-custom:hover { border-color: var(--ink); color: var(--ink); }
-
-/* ── 文本工具类 ─────────────────────────────────────────────────────────── */
-.text-muted-custom { color: #64748b; }
-.text-hint { color: #94a3b8; font-size: 0.85rem; }
 
 /* ── 空状态 ──────────────────────────────────────────────────────────────── */
 .empty-state {
@@ -864,48 +634,7 @@ body {
   font-weight: 500;
 }
 
-/* ── 定时任务卡片 ──────────────────────────────────────────────────────── */
-.schedule-card { transition: transform .15s, box-shadow .15s; }
-.schedule-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--card-hover);
-}
 
-/* ── 卡片头部标签栏 ────────────────────────────────────────────────────── */
-.card-header .nav-tabs { border-bottom: none; }
-.card-header .nav-link {
-  color: #64748b;
-  border: none;
-  border-bottom: 2px solid transparent;
-  font-size: .82rem;
-  padding: .5rem .75rem;
-  transition: color .15s, border-color .15s;
-}
-.card-header .nav-link:hover { color: var(--ink); }
-.card-header .nav-link.active {
-  color: var(--ink);
-  border-bottom-color: var(--ink);
-  background: transparent;
-  font-weight: 600;
-}
-
-/* ── 拖放区域 ────────────────────────────────────────────────────────────── */
-.drop-zone {
-  border: 2px dashed #a8d5be;
-  border-radius: .75rem;
-  min-height: 200px;
-  cursor: pointer;
-  transition: background .15s, border-color .15s;
-  user-select: none;
-  padding: 1.5rem;
-  text-align: center;
-}
-.drop-zone:hover,
-.drop-zone.drag-over {
-  background: #eaf4ef;
-  border-color: var(--ink);
-}
-.drop-zone.drag-over i { opacity: 1 !important; color: var(--ink) !important; }
 
 /* ── 相册管理 ───────────────────────────────────────────────────────────── */
 .section-title {
@@ -1198,12 +927,6 @@ body {
 .folder-option-help:hover::before,
 .folder-option-help:hover::after { opacity: 1; }
 
-/* ── 图片裁切器 ─────────────────────────────────────────────────────────── */
-.cropper-view-box,
-.cropper-face { border-radius: 0; }
-.cropper-line,
-.cropper-point { background-color: #2d6a4f; }
-.cropper-view-box { outline-color: #2d6a4f; }
 
 /* ── 工具类 ──────────────────────────────────────────────────────────────── */
 .opacity-50 { opacity: .5 !important; }
