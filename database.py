@@ -67,6 +67,11 @@ def init_db(app):
         if col not in cols:
             conn.execute(f'ALTER TABLE nas_albums ADD COLUMN {col} {defn}')
 
+    sched_cols = {r[1] for r in conn.execute('PRAGMA table_info(schedules)').fetchall()}
+
+    if 'nas_album_id' not in sched_cols:
+        conn.execute('ALTER TABLE schedules ADD COLUMN nas_album_id INTEGER')
+
     conn.commit()
     conn.close()
 
@@ -156,13 +161,14 @@ def create_schedule(data):
     cur = conn.execute(
         '''INSERT INTO schedules
            (name, account_id, device_id, device_name, device_width, device_height,
-            folder_path, schedule_time, resize_mode, enabled)
-           VALUES (?,?,?,?,?,?,?,?,?,?)''',
+            folder_path, schedule_time, resize_mode, enabled, nas_album_id)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?)''',
         (
             data['name'], data['account_id'], data['device_id'],
             data.get('device_name'), data.get('device_width'), data.get('device_height'),
             data['folder_path'], data['schedule_time'],
             data.get('resize_mode', 'crop'), 1,
+            data.get('nas_album_id'),
         ),
     )
     schedule_id = cur.lastrowid
@@ -286,6 +292,8 @@ def delete_nas_album(album_id, account_id):
         'DELETE FROM nas_albums WHERE id = ? AND account_id = ?',
         (album_id, account_id),
     )
+    if cur.rowcount > 0:
+        conn.execute('DELETE FROM schedules WHERE nas_album_id = ?', (album_id,))
     conn.commit()
     conn.close()
     return cur.rowcount > 0
@@ -299,3 +307,13 @@ def update_schedule_run_status(schedule_id, status, error=None):
     )
     conn.commit()
     conn.close()
+
+
+def get_schedules_by_album(album_id):
+    conn = get_db()
+    rows = conn.execute(
+        'SELECT * FROM schedules WHERE nas_album_id = ? ORDER BY created_at DESC',
+        (album_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
