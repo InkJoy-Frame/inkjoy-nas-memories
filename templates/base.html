@@ -28,39 +28,25 @@
   {% if session.get('token') %}
   <!-- 顶部导航栏 -->
   <header class="navbar">
-    <a class="navbar-brand" href="{{ url_for('dashboard') }}" title="Home">
-      <img src="{{ url_for('static', filename='images/logo-white.svg') }}" alt="InkJoy" class="navbar-logo-img">
-    </a>
-    <div class="navbar-right">
-      <button class="lang-btn" id="langBtn"
-              onclick="setLang(getLang()==='en'?'zh':'en')">中文</button>
-      <span class="server-tag">
-        {% if session.server_key == 'global' %}Global{% else %}China{% endif %}
-      </span>
-      <a class="btn-logout" href="{{ url_for('logout') }}" data-i18n="nav.logout">Sign Out</a>
+    <div class="navbar-inner">
+      <a class="navbar-brand" href="/" title="Home">
+        <img src="{{ url_for('static', filename='images/logo-white.svg') }}" alt="InkJoy" class="navbar-logo-img">
+      </a>
+      <div class="navbar-right">
+        <button class="lang-btn" id="langBtn"
+                onclick="setLang(getLang()==='en'?'zh':'en')">中文</button>
+        <span class="server-tag">
+          {% if session.server_key == 'global' %}Global{% else %}China{% endif %}
+        </span>
+        <a class="btn-logout" href="{{ url_for('logout') }}" data-i18n="nav.logout">Sign Out</a>
+      </div>
     </div>
   </header>
 
-  <!-- 主布局：侧边栏 + 内容区 -->
-  <div class="app-layout">
-    <nav class="sidebar" id="sidebar">
-      <div class="sidebar-section-label" data-i18n="nav.manage">Manage</div>
-      <a class="nav-item {% if request.endpoint == 'albums' %}active{% endif %}"
-         href="{{ url_for('albums') }}">
-        <span class="nav-icon">📷</span>
-        <span class="nav-label" data-i18n="nav.albums">Albums</span>
-      </a>
-      <a class="nav-item {% if request.endpoint == 'schedules' %}active{% endif %}"
-         href="{{ url_for('schedules') }}">
-        <span class="nav-icon">⏰</span>
-        <span class="nav-label" data-i18n="nav.schedules">Schedules</span>
-      </a>
-    </nav>
-
-    <main class="main-content">
-      {% block content %}{% endblock %}
-    </main>
-  </div>
+  <!-- 主内容区（无侧边栏） -->
+  <main class="page-content">
+    {% block content %}{% endblock %}
+  </main>
 
   {% endif %}
 
