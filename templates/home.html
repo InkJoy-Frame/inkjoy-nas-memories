@@ -76,6 +76,8 @@ function inkModalShow(title, bodyHtml, actions) {
 
 function inkModalHide() {
   document.getElementById('inkModal').style.display = 'none';
+  var box = document.querySelector('.ink-modal-box');
+  if (box) box.style.maxWidth = '';
   if (_inkModalResolve) { _inkModalResolve(null); _inkModalResolve = null; }
 }
 
@@ -777,9 +779,204 @@ async function deleteAlbum(albumId, albumName) {
   else alert(resp.error);
 }
 
-// ── 占位函数（后续 Task 实现） ───────────────────────────────────────────────
+// ── 快速推送 ────────────────────────────────────────────────────────────────
 
-function openQuickPush() { alert('TODO: Task 9'); }
+let qpSelectedPath = null;
+let qpPickedDevices = new Set();
+let qpBrowsePath = '';
+let devicesCache = [];
+
+async function openQuickPush() {
+  qpSelectedPath = null;
+  qpPickedDevices = new Set();
+  qpBrowsePath = '';
+
+  var pills = albumsData.map(function(a) {
+    return '<span class="device-pick-item" onclick="qpLoadAlbum(' + a.id + ')" data-album="' + a.id + '">' + esc(a.name) + '</span>';
+  }).join('');
+
+  var browsePill = '<span class="device-pick-item" onclick="qpBrowseMode()" data-browse="1">' + (getLang() === 'zh' ? '📂 浏览文件夹' : '📂 Browse Folders') + '</span>';
+
+  var bodyHtml = ''
+    + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">'
+    +   pills + browsePill
+    + '</div>'
+    + '<div id="qpContent" style="min-height:200px;max-height:350px;overflow-y:auto;border:1px solid #eee;border-radius:8px;padding:8px">'
+    +   '<div style="text-align:center;color:#999;padding:40px">' + (getLang() === 'zh' ? '选择上方的相册或浏览文件夹' : 'Select an album above or browse folders') + '</div>'
+    + '</div>'
+    + '<div id="qpPushArea" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #eee">'
+    +   '<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">'
+    +     '<img id="qpPreview" src="" style="width:60px;height:60px;object-fit:cover;border-radius:6px;background:#eee">'
+    +     '<div id="qpPhotoName" style="font-size:13px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>'
+    +   '</div>'
+    +   '<div style="font-size:12px;font-weight:600;color:#475569;margin-bottom:6px">' + t('bind.device') + '</div>'
+    +   '<div class="device-pick-grid" id="qpDevices"></div>'
+    +   '<button class="btn-sm-primary" style="width:100%;margin-top:10px;padding:10px" id="qpPushBtn" onclick="qpDoPush()" disabled>'
+    +     (getLang() === 'zh' ? '推送' : 'Push')
+    +   '</button>'
+    + '</div>';
+
+  inkModalShow(t('home.push.title'), bodyHtml, [
+    { label: t('albums.modal.cancel'), cls: 'ink-btn-secondary', onClick: inkModalCancel },
+  ]);
+
+  document.querySelector('.ink-modal-box').style.maxWidth = '560px';
+}
+
+async function qpLoadAlbum(albumId) {
+  document.querySelectorAll('#inkModalBody .device-pick-item').forEach(function(el) { el.classList.remove('picked'); });
+  var active = document.querySelector('#inkModalBody .device-pick-item[data-album="' + albumId + '"]');
+  if (active) active.classList.add('picked');
+
+  var content = document.getElementById('qpContent');
+  content.innerHTML = '<div style="text-align:center;padding:20px"><div class="spinner-border spinner-border-sm"></div></div>';
+
+  var resp = await fetch('/api/nas-albums/' + albumId + '/photos').then(function(r) { return r.json(); });
+
+  if (!resp.success || !resp.photos || !resp.photos.length) {
+    content.innerHTML = '<div style="text-align:center;color:#999;padding:40px">' + t('albums.photos.empty') + '</div>';
+    return;
+  }
+
+  content.innerHTML = '<div class="photo-grid">' + resp.photos.map(function(p) {
+    return '<div class="photo-item" onclick="qpSelectPhoto(\'' + esc(p.path) + '\',\'' + esc(p.name) + '\')">'
+      + '<img src="/api/image?path=' + encodeURIComponent(p.path) + '&thumb=true" alt="' + esc(p.name) + '" loading="lazy">'
+      + '</div>';
+  }).join('') + '</div>';
+}
+
+async function qpBrowseMode() {
+  document.querySelectorAll('#inkModalBody .device-pick-item').forEach(function(el) { el.classList.remove('picked'); });
+  var active = document.querySelector('#inkModalBody .device-pick-item[data-browse]');
+  if (active) active.classList.add('picked');
+
+  qpBrowsePath = '';
+  await qpLoadFolder('');
+}
+
+async function qpLoadFolder(path) {
+  qpBrowsePath = path;
+  var content = document.getElementById('qpContent');
+  content.innerHTML = '<div style="text-align:center;padding:20px"><div class="spinner-border spinner-border-sm"></div></div>';
+
+  var resp = await fetch('/api/browse?path=' + encodeURIComponent(path)).then(function(r) { return r.json(); });
+  if (!resp.success) return;
+
+  var parts = path ? path.split('/').filter(Boolean) : [];
+  var bcHtml = '<span style="cursor:pointer;color:var(--ink);font-weight:500" onclick="qpLoadFolder(\'\')">' + t('albums.folder.root') + '</span>';
+  var built = '';
+  parts.forEach(function(p) {
+    built += (built ? '/' : '') + p;
+    var bp = built;
+    bcHtml += ' / <span style="cursor:pointer;color:var(--ink);font-weight:500" onclick="qpLoadFolder(\'' + bp + '\')">' + esc(p) + '</span>';
+  });
+
+  var dirs = resp.items.filter(function(i) { return i.type === 'dir'; });
+  var images = resp.items.filter(function(i) { return i.type === 'image'; });
+
+  var html = '<div style="padding:6px 8px;background:#f8f9fa;border-radius:4px;font-size:13px;margin-bottom:8px">' + bcHtml + '</div>';
+
+  if (path) {
+    var parent = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '';
+    html += '<div style="padding:6px 8px;cursor:pointer;font-size:13px" onclick="qpLoadFolder(\'' + parent + '\')">⬆️ ..</div>';
+  }
+
+  dirs.forEach(function(d) {
+    html += '<div style="padding:6px 8px;cursor:pointer;font-size:13px" onclick="qpLoadFolder(\'' + d.path + '\')">📁 ' + esc(d.name) + '</div>';
+  });
+
+  if (images.length) {
+    html += '<div class="photo-grid" style="margin-top:8px">' + images.map(function(img) {
+      return '<div class="photo-item" onclick="qpSelectPhoto(\'' + esc(img.path) + '\',\'' + esc(img.name) + '\')">'
+        + '<img src="/api/image?path=' + encodeURIComponent(img.path) + '&thumb=true" alt="' + esc(img.name) + '" loading="lazy">'
+        + '</div>';
+    }).join('') + '</div>';
+  }
+
+  if (!dirs.length && !images.length) {
+    html += '<div style="text-align:center;color:#999;padding:20px">' + (getLang() === 'zh' ? '空文件夹' : 'Empty folder') + '</div>';
+  }
+
+  content.innerHTML = html;
+}
+
+async function qpSelectPhoto(path, name) {
+  qpSelectedPath = path;
+  qpPickedDevices = new Set();
+
+  document.getElementById('qpPreview').src = '/api/image?path=' + encodeURIComponent(path) + '&thumb=true';
+  document.getElementById('qpPhotoName').textContent = name;
+  document.getElementById('qpPushArea').style.display = '';
+
+  devicesCache = await getDevices();
+  var grid = document.getElementById('qpDevices');
+  grid.innerHTML = devicesCache.map(function(d) {
+    return '<div class="device-pick-item" data-did="' + d.deviceId + '" onclick="qpToggleDevice(this,\'' + d.deviceId + '\')">'
+      + (d.status === 'ONLINE' ? '🟢' : '⚫') + ' ' + esc(d.deviceName || d.deviceId)
+      + '</div>';
+  }).join('');
+
+  document.getElementById('qpPushBtn').disabled = true;
+}
+
+function qpToggleDevice(el, deviceId) {
+  el.classList.toggle('picked');
+
+  if (el.classList.contains('picked')) {
+    var dev = devicesCache.find(function(d) { return d.deviceId === deviceId; });
+    if (dev) qpPickedDevices.add(dev);
+  } else {
+    qpPickedDevices.forEach(function(d) { if (d.deviceId === deviceId) qpPickedDevices.delete(d); });
+  }
+
+  document.getElementById('qpPushBtn').disabled = qpPickedDevices.size === 0;
+}
+
+async function qpDoPush() {
+  if (!qpSelectedPath || qpPickedDevices.size === 0) return;
+
+  var btn = document.getElementById('qpPushBtn');
+  var origText = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+  var imageResp = await fetch('/api/image?path=' + encodeURIComponent(qpSelectedPath));
+  var imageBlob = await imageResp.blob();
+
+  var allOk = true;
+  var devArr = [];
+  qpPickedDevices.forEach(function(d) { devArr.push(d); });
+
+  for (var i = 0; i < devArr.length; i++) {
+    var dev = devArr[i];
+    var form = new FormData();
+    form.append('device_id', dev.deviceId);
+    form.append('file', imageBlob, 'push.jpg');
+
+    try {
+      var resp = await fetch('/api/upload', {method: 'POST', body: form});
+      var data = await resp.json();
+
+      if (!data.success) {
+        alert((dev.deviceName || dev.deviceId) + ': ' + data.error);
+        allOk = false;
+      }
+    } catch(e) {
+      alert((dev.deviceName || dev.deviceId) + ': ' + e.message);
+      allOk = false;
+    }
+  }
+
+  if (allOk) {
+    btn.innerHTML = '✓';
+    btn.style.background = '#4caf50';
+    setTimeout(function() { inkModalHide(); }, 1000);
+  } else {
+    btn.textContent = origText;
+    btn.disabled = false;
+    btn.style.background = '';
+  }
+}
 
 // ── 初始化 ───────────────────────────────────────────────────────────────────
 loadAlbums();
