@@ -139,7 +139,7 @@ def _scan_selected_folders(selected_folders, filter_system_dirs=True):
 @app.route('/')
 def index():
     if 'token' in session:
-        return redirect(url_for('dashboard'))
+        return render_template('home.html')
     return redirect(url_for('login'))
 
 
@@ -214,30 +214,6 @@ def logout():
     return redirect(url_for('login'))
 
 
-@app.route('/dashboard')
-@login_required
-def dashboard():
-    return render_template('dashboard.html')
-
-
-@app.route('/albums')
-@login_required
-def albums():
-    return render_template('albums.html')
-
-
-@app.route('/upload')
-@login_required
-def upload():
-    return redirect(url_for('albums'))
-
-
-@app.route('/schedules')
-@login_required
-def schedules():
-    return render_template('schedules.html')
-
-
 # ── API: Devices ──────────────────────────────────────────────────────────────
 
 @app.route('/api/devices')
@@ -253,30 +229,6 @@ def api_devices():
 
 
 # ── API: Albums ──────────────────────────────────────────────────────────────
-
-@app.route('/api/cloud-albums')
-@login_required
-def api_cloud_albums():
-    from api_client import InkJoyClient
-    try:
-        client = InkJoyClient(session['server_url'], session['token'])
-        albums = client.list_albums()
-        return jsonify({'success': True, 'albums': albums})
-    except Exception as e:
-        return _handle_api_error(e)
-
-
-@app.route('/api/cloud-albums/<album_id>/photos')
-@login_required
-def api_cloud_album_photos(album_id):
-    from api_client import InkJoyClient
-    try:
-        client = InkJoyClient(session['server_url'], session['token'])
-        photos = client.list_album_photos(album_id)
-        return jsonify({'success': True, 'photos': photos})
-    except Exception as e:
-        return _handle_api_error(e)
-
 
 @app.route('/api/nas-albums')
 @login_required
@@ -356,14 +308,20 @@ def api_nas_albums_rename(album_id):
 @app.route('/api/nas-albums/<int:album_id>', methods=['DELETE'])
 @login_required
 def api_nas_albums_delete(album_id):
-    from database import delete_nas_album
+    from database import delete_nas_album, get_schedules_by_album
+    from scheduler_manager import remove_job
     account_id, err = _require_account_id()
 
     if err:
         return err
 
+    schedules = get_schedules_by_album(album_id)
+
     if not delete_nas_album(album_id, account_id):
         return jsonify({'success': False, 'error': '相册不存在或无权限'}), 404
+
+    for s in schedules:
+        remove_job(s['id'])
 
     return jsonify({'success': True})
 
@@ -597,6 +555,13 @@ def api_schedules_run(sid):
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@app.route('/api/nas-albums/<int:album_id>/schedules')
+@login_required
+def api_nas_album_schedules(album_id):
+    from database import get_schedules_by_album
+    return jsonify({'success': True, 'schedules': get_schedules_by_album(album_id)})
 
 
 # ── API: Accounts ─────────────────────────────────────────────────────────────
