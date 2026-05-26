@@ -247,9 +247,360 @@ function closeLightbox() {
 
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
 
+// ── 文件夹选择器状态 ─────────────────────────────────────────────────────────
+
+const picker = {
+  albumName: '',
+  selected: new Set(),
+  includeSubfolders: true,
+  filterSystemDirs: true,
+  visibleDirs: [],
+  currentViewPath: '',
+};
+
+function refreshAllChecks() {
+  document.querySelectorAll('.folder-check').forEach(el => {
+    el.classList.toggle('checked', picker.selected.has(el.dataset.path));
+  });
+}
+
+function updateWizardNextBtn(stepId) {
+  const btn = document.getElementById(stepId);
+  if (!btn) return;
+
+  if (stepId === 'wizardNextStep2') {
+    btn.disabled = picker.selected.size === 0;
+    btn.style.opacity = picker.selected.size === 0 ? '.4' : '';
+  }
+}
+
+function toggleFolderSelection(path) {
+  if (picker.selected.has(path)) {
+    picker.selected.delete(path);
+
+    if (picker.includeSubfolders && path === picker.currentViewPath) {
+      picker.visibleDirs.forEach(d => picker.selected.delete(d.path));
+    }
+  } else {
+    picker.selected.add(path);
+
+    if (picker.includeSubfolders && path === picker.currentViewPath) {
+      picker.visibleDirs.forEach(d => picker.selected.add(d.path));
+    }
+  }
+
+  refreshAllChecks();
+  updateWizardNextBtn('wizardNextStep2');
+}
+
+function toggleIncludeSubfolders(checked) {
+  picker.includeSubfolders = checked;
+
+  if (checked && picker.selected.has(picker.currentViewPath)) {
+    picker.visibleDirs.forEach(d => picker.selected.add(d.path));
+  }
+
+  refreshAllChecks();
+}
+
+function toggleFilterSystemDirs(checked) {
+  picker.filterSystemDirs = checked;
+}
+
+async function browseFolders(path) {
+  const resp = await fetch('/api/browse?path=' + encodeURIComponent(path));
+  const data = await resp.json();
+  if (!data.success) return;
+
+  const parts = path ? path.split('/').filter(Boolean) : [];
+  let bc = '<span class="folder-bc-item" onclick="browseFolders(\'\')">' + t('albums.folder.root') + '</span>';
+  let built = '';
+  parts.forEach(p => {
+    built += (built ? '/' : '') + p;
+    const bp = built;
+    bc += ' / <span class="folder-bc-item" onclick="browseFolders(\'' + bp + '\')">' + esc(p) + '</span>';
+  });
+  document.getElementById('folderBreadcrumb').innerHTML = bc;
+
+  const dirs = data.items.filter(i => i.type === 'dir');
+  const imgCount = data.items.filter(i => i.type === 'image').length;
+  const curLabel = parts.length ? parts[parts.length - 1] : t('albums.folder.root');
+  picker.currentViewPath = path;
+  picker.visibleDirs = dirs;
+
+  const ck = p => picker.selected.has(p) ? 'checked' : '';
+  let html = '';
+
+  html += '<div class="folder-item folder-item-current" onclick="toggleFolderSelection(\'' + esc(path) + '\')">'
+    + '<span class="folder-check ' + ck(path) + '" data-path="' + esc(path) + '"></span>'
+    + '<span class="folder-item-label">📂 ' + esc(curLabel) + '</span>'
+    + '<span class="folder-item-meta">' + (imgCount ? '📷 ' + imgCount : '') + '</span>'
+    + '</div>';
+
+  if (path) {
+    const parent = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '';
+    html += '<div class="folder-item folder-item-sub" onclick="browseFolders(\'' + parent + '\')">'
+      + '<span class="folder-item-label">⬆️ ..</span>'
+      + '</div>';
+  }
+
+  dirs.forEach(d => {
+    html += '<div class="folder-item folder-item-sub">'
+      + '<span class="folder-check ' + ck(d.path) + '" data-path="' + esc(d.path) + '" onclick="event.stopPropagation();toggleFolderSelection(\'' + esc(d.path) + '\')"></span>'
+      + '<span class="folder-item-label" onclick="browseFolders(\'' + d.path + '\')">📁 ' + esc(d.name) + '</span>'
+      + '</div>';
+  });
+
+  document.getElementById('folderList').innerHTML = html;
+}
+
+// ── 设备加载（带 localStorage 缓存） ────────────────────────────────────────
+
+const DEVICE_CACHE_TTL = 5 * 60 * 1000;
+const DEVICE_CACHE_KEY = 'inkjoy_devices_' + (window.INKJOY_ACCOUNT_ID || 0);
+
+async function getDevices() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(DEVICE_CACHE_KEY) || 'null');
+    if (cached && Date.now() - cached.ts < DEVICE_CACHE_TTL) return cached.data;
+  } catch(_) {}
+
+  const resp = await fetch('/api/devices');
+  if (!resp.ok) return [];
+  const data = await resp.json();
+
+  if (data.success && data.devices && data.devices.length) {
+    localStorage.setItem(DEVICE_CACHE_KEY, JSON.stringify({ts: Date.now(), data: data.devices}));
+    return data.devices;
+  }
+
+  return [];
+}
+
+// ── 新建相册向导 ─────────────────────────────────────────────────────────────
+
+let pickedDevices = new Set();
+let devicesList = [];
+let wizardStep = 1;
+
+function openWizard() {
+  picker.albumName = '';
+  picker.selected = new Set();
+  picker.includeSubfolders = true;
+  picker.filterSystemDirs = true;
+  picker.visibleDirs = [];
+  picker.currentViewPath = '';
+  pickedDevices = new Set();
+  devicesList = [];
+  wizardStep = 1;
+
+  const bodyHtml = ''
+    + '<div id="wizardStep1" class="wizard-step">'
+    +   '<div class="wizard-step-label">' + t('wizard.step.name') + '</div>'
+    +   '<input type="text" id="wizardAlbumName" class="ink-modal-input" placeholder="' + t('wizard.step.name') + '" maxlength="50">'
+    + '</div>'
+    + '<div id="wizardStep2" class="wizard-step" style="display:none">'
+    +   '<div class="wizard-step-label">' + t('wizard.step.folders') + '</div>'
+    +   '<div class="folder-browser-inline">'
+    +     '<nav class="folder-breadcrumb" id="folderBreadcrumb"></nav>'
+    +     '<div class="folder-list" id="folderList"></div>'
+    +   '</div>'
+    +   '<div class="folder-options">'
+    +     '<label class="folder-option">'
+    +       '<span>' + t('albums.opt.include_sub') + '</span>'
+    +       '<span class="toggle-switch"><input type="checkbox" id="optIncludeSubfolders" checked onchange="toggleIncludeSubfolders(this.checked)"><span class="toggle-slider"></span></span>'
+    +     '</label>'
+    +     '<label class="folder-option">'
+    +       '<span>' + t('albums.opt.filter_sys') + '<span class="folder-option-help" title="' + t('albums.opt.filter_sys.tip') + '">?</span></span>'
+    +       '<span class="toggle-switch"><input type="checkbox" id="optFilterSystemDirs" checked onchange="toggleFilterSystemDirs(this.checked)"><span class="toggle-slider"></span></span>'
+    +     '</label>'
+    +   '</div>'
+    + '</div>'
+    + '<div id="wizardStep3" class="wizard-step" style="display:none">'
+    +   '<div class="wizard-step-label">' + t('wizard.step.devices') + '</div>'
+    +   '<div style="color:#888;font-size:13px;margin-bottom:8px">' + t('wizard.step.devices.hint') + '</div>'
+    +   '<div class="device-pick-grid" id="wizardDeviceGrid"></div>'
+    +   '<div class="wizard-step-label" style="margin-top:16px">' + t('wizard.step.schedule') + '</div>'
+    +   '<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">'
+    +     '<label style="display:flex;align-items:center;gap:6px;font-size:14px">'
+    +       '<span>' + t('bind.time') + '</span>'
+    +       '<input type="time" id="wizardTime" value="08:00" style="padding:4px 8px;border:1px solid #ddd;border-radius:6px">'
+    +     '</label>'
+    +     '<label style="display:flex;align-items:center;gap:6px;font-size:14px">'
+    +       '<span>' + t('bind.resize') + '</span>'
+    +       '<select id="wizardResize" style="padding:4px 8px;border:1px solid #ddd;border-radius:6px">'
+    +         '<option value="blur">' + t('sched.resize.blur') + '</option>'
+    +         '<option value="isfr">' + t('sched.resize.isfr') + '</option>'
+    +         '<option value="crop">' + t('sched.resize.crop') + '</option>'
+    +       '</select>'
+    +     '</label>'
+    +   '</div>'
+    + '</div>';
+
+  inkModalShow(t('wizard.title'), bodyHtml, [
+    { label: t('wizard.next'), cls: 'ink-btn-primary', onClick: wizardGoStep2, id: 'wizardNextStep1' },
+  ]);
+
+  setTimeout(function() {
+    var inp = document.getElementById('wizardAlbumName');
+    if (inp) {
+      inp.focus();
+      inp.addEventListener('keydown', function(e) { if (e.key === 'Enter') wizardGoStep2(); });
+    }
+  }, 50);
+}
+
+function wizardGoStep2() {
+  var nameInput = document.getElementById('wizardAlbumName');
+  var name = nameInput ? nameInput.value.trim() : '';
+  if (!name) { nameInput.focus(); return; }
+
+  picker.albumName = name;
+  wizardStep = 2;
+
+  document.getElementById('wizardStep2').style.display = '';
+  nameInput.readOnly = true;
+  nameInput.style.opacity = '.6';
+
+  var footer = document.getElementById('inkModalFooter');
+  footer.innerHTML = '';
+
+  var btn = document.createElement('button');
+  btn.className = 'ink-btn ink-btn-primary';
+  btn.id = 'wizardNextStep2';
+  btn.textContent = t('wizard.next');
+  btn.disabled = true;
+  btn.style.opacity = '.4';
+  btn.onclick = wizardGoStep3;
+  footer.appendChild(btn);
+
+  browseFolders('');
+
+  setTimeout(function() {
+    var step2 = document.getElementById('wizardStep2');
+    if (step2) step2.scrollIntoView({behavior: 'smooth', block: 'start'});
+  }, 100);
+}
+
+async function wizardGoStep3() {
+  if (picker.selected.size === 0) return;
+
+  wizardStep = 3;
+  document.getElementById('wizardStep3').style.display = '';
+
+  var footer = document.getElementById('inkModalFooter');
+  footer.innerHTML = '';
+
+  var skipBtn = document.createElement('button');
+  skipBtn.className = 'ink-btn ink-btn-secondary';
+  skipBtn.textContent = t('wizard.skip');
+  skipBtn.onclick = function() { wizardCreate(true); };
+  footer.appendChild(skipBtn);
+
+  var createBtn = document.createElement('button');
+  createBtn.className = 'ink-btn ink-btn-primary';
+  createBtn.textContent = t('wizard.create');
+  createBtn.onclick = function() { wizardCreate(false); };
+  footer.appendChild(createBtn);
+
+  var grid = document.getElementById('wizardDeviceGrid');
+  grid.innerHTML = '<div style="color:#999;font-size:13px">Loading...</div>';
+
+  devicesList = await getDevices();
+
+  if (!devicesList.length) {
+    grid.innerHTML = '<div style="color:#999;font-size:13px">No devices found</div>';
+  } else {
+    grid.innerHTML = devicesList.map(function(dev) {
+      var statusColor = (dev.status === 1 || dev.status === 'online') ? '#4caf50' : '#ccc';
+      return '<div class="device-pick-item" data-device-id="' + esc(dev.deviceId) + '" onclick="toggleDevicePick(this,\'' + esc(dev.deviceId) + '\')">'
+        + '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + statusColor + ';margin-right:6px"></span>'
+        + esc(dev.deviceName || dev.deviceId)
+        + '</div>';
+    }).join('');
+  }
+
+  setTimeout(function() {
+    var step3 = document.getElementById('wizardStep3');
+    if (step3) step3.scrollIntoView({behavior: 'smooth', block: 'start'});
+  }, 100);
+}
+
+function toggleDevicePick(el, deviceId) {
+  var dev = devicesList.find(function(d) { return d.deviceId === deviceId; });
+  if (!dev) return;
+
+  if (el.classList.contains('picked')) {
+    el.classList.remove('picked');
+    pickedDevices.delete(deviceId);
+  } else {
+    el.classList.add('picked');
+    pickedDevices.add(deviceId);
+  }
+}
+
+async function wizardCreate(skipBinding) {
+  var albumName = picker.albumName;
+  var selectedFolders = Array.from(picker.selected);
+
+  var footer = document.getElementById('inkModalFooter');
+  footer.querySelectorAll('button').forEach(function(b) { b.disabled = true; b.style.opacity = '.5'; });
+
+  var albumResp = await fetch('/api/nas-albums', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      name: albumName,
+      selected_folders: selectedFolders,
+      filter_system_dirs: picker.filterSystemDirs,
+    }),
+  }).then(function(r) { return r.json(); });
+
+  if (!albumResp.success) {
+    alert(albumResp.error);
+    footer.querySelectorAll('button').forEach(function(b) { b.disabled = false; b.style.opacity = ''; });
+    return;
+  }
+
+  if (!skipBinding && pickedDevices.size > 0) {
+    var time = document.getElementById('wizardTime').value;
+    var resize = document.getElementById('wizardResize').value;
+    var folderPath = selectedFolders[0];
+
+    var devArr = [];
+    pickedDevices.forEach(function(id) {
+      var d = devicesList.find(function(x) { return x.deviceId === id; });
+      if (d) devArr.push(d);
+    });
+
+    for (var i = 0; i < devArr.length; i++) {
+      var dev = devArr[i];
+      await fetch('/api/schedules', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          name: albumName + ' → ' + (dev.deviceName || dev.deviceId),
+          account_id: window.INKJOY_ACCOUNT_ID,
+          device_id: dev.deviceId,
+          device_name: dev.deviceName || dev.deviceId,
+          device_width: dev.resolution ? dev.resolution.width : null,
+          device_height: dev.resolution ? dev.resolution.height : null,
+          folder_path: folderPath,
+          schedule_time: time,
+          resize_mode: resize,
+          enabled: true,
+          nas_album_id: albumResp.id,
+        }),
+      });
+    }
+  }
+
+  inkModalHide();
+  loadAlbums();
+}
+
 // ── 占位函数（后续 Task 实现） ───────────────────────────────────────────────
 
-function openWizard() { alert('TODO: Task 7'); }
 function addBinding(albumId) { alert('TODO: Task 8'); }
 function showAlbumMenu(event, albumId, albumName) { alert('TODO: Task 8'); }
 function toggleBinding(scheduleId, enabled) { alert('TODO: Task 8'); }

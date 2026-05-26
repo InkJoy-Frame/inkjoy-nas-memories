@@ -85,6 +85,7 @@ const I18N = {
     'wizard.step.devices':     'Bind Frames (optional)',
     'wizard.step.devices.hint':'Select frames to auto-push. You can skip this step.',
     'wizard.step.schedule':    'Push Settings',
+    'wizard.next':             'Next',
     'wizard.skip':             'Skip, create album only',
     'wizard.create':           'Create',
 
@@ -226,6 +227,7 @@ const I18N = {
     'wizard.step.devices':     '绑定相框（可选）',
     'wizard.step.devices.hint':'选择要自动推送的相框，也可以跳过此步。',
     'wizard.step.schedule':    '推送设置',
+    'wizard.next':             '下一步',
     'wizard.skip':             '跳过，仅创建相册',
     'wizard.create':           '创建',
 
