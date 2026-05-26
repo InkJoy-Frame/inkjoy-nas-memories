@@ -224,6 +224,8 @@ function renderBindingRow(s) {
         <div class="binding-detail">${t('bind.daily')} ${s.schedule_time} · ${resizeLabel(s.resize_mode)} ${nextHtml}</div>
       </div>
       <div class="binding-status">
+        <button onclick="runBinding(${s.id},this)" title="${t('sched.btn.run')}" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px">▶</button>
+        <button onclick="deleteBinding(${s.id},'${esc(s.device_name || s.device_id)}')" title="${t('sched.btn.delete')}" style="background:none;border:none;cursor:pointer;font-size:12px;padding:2px;color:#dc3545">✕</button>
         ${statusBadge}
         <label class="toggle-switch" style="margin:0">
           <input type="checkbox" ${s.enabled ? 'checked' : ''} onchange="toggleBinding(${s.id},this.checked)">
@@ -599,11 +601,184 @@ async function wizardCreate(skipBinding) {
   loadAlbums();
 }
 
+// ── 绑定操作 ────────────────────────────────────────────────────────────────
+
+async function addBinding(albumId) {
+  var album = albumsData.find(function(a) { return a.id === albumId; });
+  if (!album) return;
+
+  var devices = await getDevices();
+
+  var boundDeviceIds = {};
+  album.schedules.forEach(function(s) { boundDeviceIds[s.device_id] = true; });
+  var available = devices.filter(function(d) { return !boundDeviceIds[d.deviceId]; });
+
+  if (!available.length) {
+    await inkConfirm(t('bind.modal.title'), getLang() === 'zh' ? '所有设备已绑定此相册' : 'All devices are already bound to this album');
+    return;
+  }
+
+  var deviceOptions = available.map(function(d) {
+    var statusDot = d.status === 'ONLINE' ? '🟢' : '⚫';
+    return '<option value="' + esc(d.deviceId) + '" data-name="' + esc(d.deviceName || d.deviceId) + '" data-w="' + (d.resolution ? d.resolution.width : '') + '" data-h="' + (d.resolution ? d.resolution.height : '') + '">' + esc(d.deviceName || d.deviceId) + ' ' + statusDot + '</option>';
+  }).join('');
+
+  var bodyHtml = ''
+    + '<div style="margin-bottom:1rem">'
+    +   '<div style="font-size:13px;font-weight:600;color:#475569;margin-bottom:.5rem">' + t('bind.device') + '</div>'
+    +   '<select id="bindDevice" class="ink-modal-input" style="margin-top:0">' + deviceOptions + '</select>'
+    + '</div>'
+    + '<div style="margin-bottom:1rem">'
+    +   '<div style="font-size:13px;font-weight:600;color:#475569;margin-bottom:.5rem">' + t('bind.time') + '</div>'
+    +   '<input type="time" id="bindTime" class="ink-modal-input" style="margin-top:0" value="08:00">'
+    + '</div>'
+    + '<div>'
+    +   '<div style="font-size:13px;font-weight:600;color:#475569;margin-bottom:.5rem">' + t('bind.resize') + '</div>'
+    +   '<select id="bindResize" class="ink-modal-input" style="margin-top:0">'
+    +     '<option value="blur">' + t('sched.resize.blur') + '</option>'
+    +     '<option value="isfr">' + t('sched.resize.isfr') + '</option>'
+    +     '<option value="crop">' + t('sched.resize.crop') + '</option>'
+    +   '</select>'
+    + '</div>';
+
+  inkModalShow(t('bind.modal.title'), bodyHtml, [
+    { label: t('albums.modal.cancel'), cls: 'ink-btn-secondary', onClick: inkModalCancel },
+    { label: t('albums.modal.ok'), cls: 'ink-btn-primary', onClick: async function() {
+      var sel = document.getElementById('bindDevice');
+      var opt = sel.options[sel.selectedIndex];
+      var time = document.getElementById('bindTime').value;
+      var resize = document.getElementById('bindResize').value;
+
+      var folderPath = album.folder_path;
+      try {
+        var folders = JSON.parse(album.selected_folders || '[]');
+        if (folders.length) folderPath = folders[0];
+      } catch(e) {}
+
+      var resp = await fetch('/api/schedules', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          name: album.name + ' → ' + opt.dataset.name,
+          account_id: window.INKJOY_ACCOUNT_ID,
+          device_id: sel.value,
+          device_name: opt.dataset.name,
+          device_width: parseInt(opt.dataset.w) || null,
+          device_height: parseInt(opt.dataset.h) || null,
+          folder_path: folderPath,
+          schedule_time: time,
+          resize_mode: resize,
+          enabled: true,
+          nas_album_id: albumId,
+        }),
+      }).then(function(r) { return r.json(); });
+
+      inkModalHide();
+      if (resp.success) loadAlbums();
+      else alert(resp.error);
+    }},
+  ]);
+}
+
+async function toggleBinding(scheduleId, enabled) {
+  var resp = await fetch('/api/schedules/' + scheduleId + '/toggle', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({enabled: enabled}),
+  }).then(function(r) { return r.json(); });
+  if (!resp.success) alert(resp.error);
+  loadAlbums();
+}
+
+async function runBinding(scheduleId, btn) {
+  var origHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+  var resp = await fetch('/api/schedules/' + scheduleId + '/run', {method: 'POST'}).then(function(r) { return r.json(); });
+
+  if (resp.success) {
+    btn.innerHTML = '✓';
+    btn.style.color = '#4caf50';
+    setTimeout(function() { btn.innerHTML = origHtml; btn.disabled = false; btn.style.color = ''; loadAlbums(); }, 2000);
+  } else {
+    alert(resp.error || 'Failed');
+    btn.innerHTML = origHtml;
+    btn.disabled = false;
+    loadAlbums();
+  }
+}
+
+async function deleteBinding(scheduleId, deviceName) {
+  var ok = await inkConfirm(
+    t('sched.btn.delete'),
+    t('sched.del.confirm', {name: deviceName})
+  );
+  if (!ok) return;
+
+  var resp = await fetch('/api/schedules/' + scheduleId, {method: 'DELETE'}).then(function(r) { return r.json(); });
+  if (resp.success) loadAlbums();
+  else alert(resp.error);
+}
+
+// ── 相册菜单 ────────────────────────────────────────────────────────────────
+
+function showAlbumMenu(event, albumId, albumName) {
+  var existing = document.querySelector('.album-menu-dropdown');
+  if (existing) existing.remove();
+
+  var menu = document.createElement('div');
+  menu.className = 'album-menu-dropdown';
+  menu.innerHTML = ''
+    + '<button onclick="renameAlbum(' + albumId + ',\'' + esc(albumName) + '\')">' + t('albums.menu.rename') + '</button>'
+    + '<button class="text-danger" onclick="deleteAlbum(' + albumId + ',\'' + esc(albumName) + '\')">' + t('albums.menu.delete') + '</button>';
+
+  document.body.appendChild(menu);
+  var rect = event.target.getBoundingClientRect();
+  menu.style.top = (rect.bottom + 4) + 'px';
+  menu.style.left = Math.min(rect.left, window.innerWidth - 140) + 'px';
+
+  setTimeout(function() {
+    document.addEventListener('click', function handler() {
+      menu.remove();
+      document.removeEventListener('click', handler);
+    }, {once: true});
+  }, 0);
+}
+
+async function renameAlbum(albumId, oldName) {
+  var dropdown = document.querySelector('.album-menu-dropdown');
+  if (dropdown) dropdown.remove();
+
+  var name = await inkPrompt(t('albums.menu.rename'), oldName, oldName);
+  if (!name || name.trim() === oldName) return;
+
+  var resp = await fetch('/api/nas-albums/' + albumId, {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name: name.trim()}),
+  }).then(function(r) { return r.json(); });
+  if (resp.success) loadAlbums();
+  else alert(resp.error);
+}
+
+async function deleteAlbum(albumId, albumName) {
+  var dropdown = document.querySelector('.album-menu-dropdown');
+  if (dropdown) dropdown.remove();
+
+  var ok = await inkConfirm(
+    t('albums.menu.delete'),
+    t('albums.menu.delete.confirm', {name: albumName})
+  );
+  if (!ok) return;
+
+  var resp = await fetch('/api/nas-albums/' + albumId, {method: 'DELETE'}).then(function(r) { return r.json(); });
+  if (resp.success) loadAlbums();
+  else alert(resp.error);
+}
+
 // ── 占位函数（后续 Task 实现） ───────────────────────────────────────────────
 
-function addBinding(albumId) { alert('TODO: Task 8'); }
-function showAlbumMenu(event, albumId, albumName) { alert('TODO: Task 8'); }
-function toggleBinding(scheduleId, enabled) { alert('TODO: Task 8'); }
 function openQuickPush() { alert('TODO: Task 9'); }
 
 // ── 初始化 ───────────────────────────────────────────────────────────────────
