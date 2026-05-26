@@ -152,12 +152,11 @@ function renderAlbums() {
   const el = document.getElementById('albumList');
 
   if (!albumsData.length) {
-    el.innerHTML = `<div class="album-add-card" onclick="openWizard()">+ ${t('home.albums.new')}</div>`;
+    el.innerHTML = `<div class="binding-empty">${getLang() === 'zh' ? '还没有相册，点击右上角「新建相册」开始' : 'No albums yet. Click "+ New Album" above to get started.'}</div>`;
     return;
   }
 
-  el.innerHTML = albumsData.map(a => renderAlbumCard(a)).join('')
-    + `<div class="album-add-card" onclick="openWizard()">+ ${t('home.albums.new')}</div>`;
+  el.innerHTML = albumsData.map(a => renderAlbumCard(a)).join('');
 }
 
 // ── 单张相册卡片 ─────────────────────────────────────────────────────────────
@@ -249,7 +248,12 @@ function closeLightbox() {
   document.getElementById('lightboxImg').src = '';
 }
 
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    if (document.getElementById('inkModal').style.display !== 'none') { inkModalCancel(); return; }
+    closeLightbox();
+  }
+});
 
 // ── 文件夹选择器状态 ─────────────────────────────────────────────────────────
 
@@ -442,6 +446,7 @@ function openWizard() {
     + '</div>';
 
   inkModalShow(t('wizard.title'), bodyHtml, [
+    { label: t('albums.modal.cancel'), cls: 'ink-btn-secondary', onClick: inkModalCancel },
     { label: t('wizard.next'), cls: 'ink-btn-primary', onClick: wizardGoStep2, id: 'wizardNextStep1' },
   ]);
 
@@ -469,6 +474,12 @@ function wizardGoStep2() {
   var footer = document.getElementById('inkModalFooter');
   footer.innerHTML = '';
 
+  var cancelBtn = document.createElement('button');
+  cancelBtn.className = 'ink-btn ink-btn-secondary';
+  cancelBtn.textContent = t('albums.modal.cancel');
+  cancelBtn.onclick = inkModalCancel;
+  footer.appendChild(cancelBtn);
+
   var btn = document.createElement('button');
   btn.className = 'ink-btn ink-btn-primary';
   btn.id = 'wizardNextStep2';
@@ -494,6 +505,12 @@ async function wizardGoStep3() {
 
   var footer = document.getElementById('inkModalFooter');
   footer.innerHTML = '';
+
+  var cancelBtn = document.createElement('button');
+  cancelBtn.className = 'ink-btn ink-btn-secondary';
+  cancelBtn.textContent = t('albums.modal.cancel');
+  cancelBtn.onclick = inkModalCancel;
+  footer.appendChild(cancelBtn);
 
   var skipBtn = document.createElement('button');
   skipBtn.className = 'ink-btn ink-btn-secondary';
