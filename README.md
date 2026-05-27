@@ -1,50 +1,44 @@
-# InkJoy Manager
+# InkJoy NAS Manager
 
-InkJoy Manager is a web app for managing InkJoy ePaper frames with upload and scheduled image publishing.
-
-## Documentation Split
-
-- **Developer docs (this file):** architecture, development workflow, project conventions.
-- **User manual (bilingual):** local Docker usage and NAS deployment.
-  - [`MANUAL.md`](./MANUAL.md)
+Turn your NAS into an auto-play photo stream for InkJoy ePaper frames — pick folders, pick frames, set a schedule, and forget about it.
 
 ## Features
 
-- Account login (auto server detection; conflict UI only when needed)
-- Device list retrieval
-- Image upload and basic crop flow
-- Scheduled daily image publishing from folder
+- Single-page UI — set up auto-play in a 4-step wizard (pick folders → pick frames → push settings → name it)
+- Daily scheduled push from NAS photo folders with three fill modes (blur fill / center crop / ISFR smart crop)
+- Quick push — browse photos and send one to any frame instantly
+- Auto server detection login (global / China)
 - English / Chinese UI
 
-## Quick Start (Development)
+## Quick Start
 
-### Prerequisites
+### Docker Compose
 
-- Docker + Docker Compose
-- Python 3.10+ (optional, for local lint/syntax checks)
-
-### Run with Docker Compose
-
-```powershell
+```bash
 docker-compose up --build
 ```
 
-Open: `http://localhost:8080`
+Open `http://localhost:8080`, log in with your InkJoy account.
 
-### Stop
+### Local Development (no Docker)
 
 ```powershell
-docker-compose down
+pip install -r requirements.txt
+$env:IMAGES_DIR = "<your photo directory>"
+$env:DATA_DIR = "./data"
+$env:FLASK_DEBUG = "1"
+python app.py
 ```
 
 ## Project Structure
 
-- `app.py`: Flask routes and API endpoints
-- `database.py`: SQLite schema and data access
-- `scheduler_manager.py`: APScheduler job lifecycle and execution
-- `api_client.py`: InkJoy Open API client
-- `templates/`: UI pages
-- `static/`: CSS/JS assets
+- `app.py` — Flask routes + API
+- `database.py` — SQLite schema and data access
+- `scheduler_manager.py` — APScheduler job lifecycle and image processing (blur/crop/ISFR)
+- `api_client.py` — InkJoy Open API client
+- `templates/home.html` — single business page (auto-play list + wizard + quick push)
+- `static/css/style.css` — all styles
+- `static/js/i18n.js` — bilingual translations
 
 ## Runtime Storage
 
@@ -75,9 +69,4 @@ Based on [InkJoy Open API](https://openapi.inkjoyframe.com/):
 - `GET /api/v1/devices`
 - `POST /api/v1/devices/{id}/publish`
 
-## Notes for Contributors
-
-- Keep account isolation logic in API layer (`session.account_id` checks).
-- Do not bind scheduler execution to current web session.
-- Prefer small, safe changes with backward-compatible DB updates.
 
