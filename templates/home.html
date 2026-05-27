@@ -2,7 +2,8 @@
 {% block title %}InkJoy NAS{% endblock %}
 
 {% block content %}
-<!-- 相册列表区块 -->
+<div id="mainView">
+<!-- 自动播放列表 -->
 <div class="content-card">
   <div class="content-card-header">
     <div>
@@ -29,6 +30,75 @@
   </div>
 </div>
 
+</div>
+
+<!-- 新建向导（全页面） -->
+<div id="wizardPage" style="display:none">
+  <div class="wizard-header">
+    <div class="content-card-title" data-i18n="wizard.title" style="font-size:16px">New Auto Play</div>
+    <button class="btn-sm-outline" onclick="closeWizard()" data-i18n="wizard.back">&larr; Back</button>
+  </div>
+
+  <div class="content-card wizard-card">
+    <div class="content-card-body" style="padding:1.25rem">
+      <div class="wizard-step-label" data-i18n="wizard.step.folders">Step 1 &middot; Pick Photo Folders</div>
+      <div class="folder-browser-inline">
+        <nav class="folder-breadcrumb" id="folderBreadcrumb"></nav>
+        <div class="folder-list" id="folderList"></div>
+      </div>
+      <div class="folder-options">
+        <label class="folder-option">
+          <span data-i18n="albums.opt.include_sub">Include photos in subfolders</span>
+          <span class="toggle-switch"><input type="checkbox" id="optIncludeSubfolders" checked onchange="toggleIncludeSubfolders(this.checked)"><span class="toggle-slider"></span></span>
+        </label>
+        <label class="folder-option">
+          <span><span data-i18n="albums.opt.filter_sys">Exclude system folders</span><span class="folder-option-help" data-i18n-title="albums.opt.filter_sys.tip" title="">?</span></span>
+          <span class="toggle-switch"><input type="checkbox" id="optFilterSystemDirs" checked onchange="toggleFilterSystemDirs(this.checked)"><span class="toggle-slider"></span></span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div class="content-card wizard-card">
+    <div class="content-card-body" style="padding:1.25rem">
+      <div class="wizard-step-label" data-i18n="wizard.step.devices">Step 2 &middot; Select Frames</div>
+      <div style="color:#888;font-size:13px;margin-bottom:10px" data-i18n="wizard.step.devices.hint">Select one or more frames to push photos to.</div>
+      <div class="device-card-grid" id="wizardDeviceGrid"></div>
+    </div>
+  </div>
+
+  <div class="content-card wizard-card">
+    <div class="content-card-body" style="padding:1.25rem">
+      <div class="wizard-step-label" data-i18n="wizard.step.schedule">Step 3 &middot; Push Settings</div>
+      <div class="wizard-form-row">
+        <div class="wizard-form-group">
+          <label data-i18n="bind.time">Daily Push Time</label>
+          <input type="time" id="wizardTime" value="08:00">
+        </div>
+        <div class="wizard-form-group">
+          <label data-i18n="bind.resize">Fill Mode</label>
+          <select id="wizardResize">
+            <option value="blur" data-i18n="sched.resize.blur">Blur Fill</option>
+            <option value="isfr" data-i18n="sched.resize.isfr">ISFR Smart Crop</option>
+            <option value="crop" data-i18n="sched.resize.crop">Center Crop</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="content-card wizard-card">
+    <div class="content-card-body" style="padding:1.25rem">
+      <div class="wizard-step-label" data-i18n="wizard.step.name">Step 4 &middot; Name It</div>
+      <input type="text" id="wizardAlbumName" class="ink-modal-input" data-i18n-ph="wizard.name.ph" placeholder="e.g. Daily Nature Photos" maxlength="50" style="margin-top:0" oninput="this.dataset.userEdited='1'; updateWizardCreateBtn()">
+      <div class="wizard-footer">
+        <button class="ink-btn ink-btn-secondary" onclick="closeWizard()" data-i18n="albums.modal.cancel">Cancel</button>
+        <button class="ink-btn ink-btn-primary" id="wizardCreateBtn" onclick="wizardCreate()" disabled style="opacity:.4" data-i18n="wizard.create">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- 自定义 Modal -->
 <div id="inkModal" class="ink-modal-overlay" style="display:none" onclick="if(event.target===this)inkModalCancel()">
   <div class="ink-modal-box">
@@ -52,6 +122,17 @@ let schedulerJobsCache = {};
 
 // ── 工具函数 ─────────────────────────────────────────────────────────────────
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function albumSourceLabel(album) {
+  try {
+    var folders = JSON.parse(album.selected_folders || '[]');
+    if (folders.length) {
+      var name = folders[0] ? folders[0].split('/').pop() : '';
+      return name || t('albums.folder.root');
+    }
+  } catch(e) {}
+  return album.name;
+}
 
 // ── Modal 系统（对齐 webtool / albums.html） ─────────────────────────────────
 
@@ -124,7 +205,7 @@ function inkConfirm(title, message) {
   });
 }
 
-// ── 相册列表加载 ─────────────────────────────────────────────────────────────
+// ── 自动播放列表加载 ─────────────────────────────────────────────────────────
 
 async function loadAlbums() {
   const [albumsResp, statusResp] = await Promise.all([
@@ -146,20 +227,20 @@ async function loadAlbums() {
   renderAlbums();
 }
 
-// ── 相册列表渲染 ─────────────────────────────────────────────────────────────
+// ── 自动播放列表渲染 ─────────────────────────────────────────────────────────
 
 function renderAlbums() {
   const el = document.getElementById('albumList');
 
   if (!albumsData.length) {
-    el.innerHTML = `<div class="binding-empty">${getLang() === 'zh' ? '还没有相册，点击右上角「新建相册」开始' : 'No albums yet. Click "+ New Album" above to get started.'}</div>`;
+    el.innerHTML = `<div class="binding-empty">${t('home.albums.empty')}</div>`;
     return;
   }
 
   el.innerHTML = albumsData.map(a => renderAlbumCard(a)).join('');
 }
 
-// ── 单张相册卡片 ─────────────────────────────────────────────────────────────
+// ── 自动播放卡片 ─────────────────────────────────────────────────────────────
 
 function renderAlbumCard(album) {
   const coverHtml = album.coverPath
@@ -184,7 +265,7 @@ function renderAlbumCard(album) {
           </div>
         </div>
         <div class="album-item-actions">
-          <button class="btn-sm-outline" onclick="addBinding(${album.id})" data-i18n="bind.add">+ Bind Frame</button>
+          <button class="btn-sm-outline" onclick="addBinding(${album.id})">${t('bind.add')}</button>
           <button style="background:none;border:none;color:#999;font-size:14px;cursor:pointer;padding:4px" onclick="event.stopPropagation();showAlbumMenu(event,${album.id},'${esc(album.name)}')" title="⋮">⋮</button>
         </div>
       </div>
@@ -258,7 +339,6 @@ document.addEventListener('keydown', e => {
 // ── 文件夹选择器状态 ─────────────────────────────────────────────────────────
 
 const picker = {
-  albumName: '',
   selected: new Set(),
   includeSubfolders: true,
   filterSystemDirs: true,
@@ -272,13 +352,44 @@ function refreshAllChecks() {
   });
 }
 
-function updateWizardNextBtn(stepId) {
-  const btn = document.getElementById(stepId);
-  if (!btn) return;
+function updateWizardCreateBtn() {
+  maybeAutoFillName();
 
-  if (stepId === 'wizardNextStep2') {
-    btn.disabled = picker.selected.size === 0;
-    btn.style.opacity = picker.selected.size === 0 ? '.4' : '';
+  var btn = document.getElementById('wizardCreateBtn');
+  if (!btn) return;
+  var nameOk = (document.getElementById('wizardAlbumName').value || '').trim().length > 0;
+  var foldersOk = picker.selected.size > 0;
+  var devicesOk = pickedDevices.size > 0;
+  btn.disabled = !(nameOk && foldersOk && devicesOk);
+  btn.style.opacity = btn.disabled ? '.4' : '';
+}
+
+function generateDefaultName() {
+  var parts = [];
+
+  if (picker.selected.size > 0) {
+    var first = Array.from(picker.selected)[0];
+    var name = first ? first.split('/').pop() : '';
+    parts.push(name || t('albums.folder.root'));
+  }
+
+  if (pickedDevices.size > 0) {
+    var names = [];
+    pickedDevices.forEach(function(id) {
+      var dev = devicesList.find(function(d) { return d.deviceId === id; });
+      if (dev) names.push(dev.deviceName || dev.deviceId);
+    });
+    if (names.length) parts.push(names.join(', '));
+  }
+
+  return parts.join(' → ');
+}
+
+function maybeAutoFillName() {
+  var input = document.getElementById('wizardAlbumName');
+  if (!input || input.dataset.userEdited) return;
+  if (picker.selected.size > 0 && pickedDevices.size > 0) {
+    input.value = generateDefaultName();
   }
 }
 
@@ -298,7 +409,7 @@ function toggleFolderSelection(path) {
   }
 
   refreshAllChecks();
-  updateWizardNextBtn('wizardNextStep2');
+  updateWizardCreateBtn();
 }
 
 function toggleIncludeSubfolders(checked) {
@@ -345,13 +456,6 @@ async function browseFolders(path) {
     + '<span class="folder-item-meta">' + (imgCount ? '📷 ' + imgCount : '') + '</span>'
     + '</div>';
 
-  if (path) {
-    const parent = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '';
-    html += '<div class="folder-item folder-item-sub" onclick="browseFolders(\'' + parent + '\')">'
-      + '<span class="folder-item-label">⬆️ ..</span>'
-      + '</div>';
-  }
-
   dirs.forEach(d => {
     html += '<div class="folder-item folder-item-sub">'
       + '<span class="folder-check ' + ck(d.path) + '" data-path="' + esc(d.path) + '" onclick="event.stopPropagation();toggleFolderSelection(\'' + esc(d.path) + '\')"></span>'
@@ -385,14 +489,12 @@ async function getDevices() {
   return [];
 }
 
-// ── 新建相册向导 ─────────────────────────────────────────────────────────────
+// ── 新建自动播放向导 ─────────────────────────────────────────────────────────
 
 let pickedDevices = new Set();
 let devicesList = [];
-let wizardStep = 1;
 
 function openWizard() {
-  picker.albumName = '';
   picker.selected = new Set();
   picker.includeSubfolders = true;
   picker.filterSystemDirs = true;
@@ -400,172 +502,83 @@ function openWizard() {
   picker.currentViewPath = '';
   pickedDevices = new Set();
   devicesList = [];
-  wizardStep = 1;
 
-  const bodyHtml = ''
-    + '<div id="wizardStep1" class="wizard-step">'
-    +   '<div class="wizard-step-label">' + t('wizard.step.name') + '</div>'
-    +   '<input type="text" id="wizardAlbumName" class="ink-modal-input" placeholder="' + t('wizard.step.name') + '" maxlength="50">'
-    + '</div>'
-    + '<div id="wizardStep2" class="wizard-step" style="display:none">'
-    +   '<div class="wizard-step-label">' + t('wizard.step.folders') + '</div>'
-    +   '<div class="folder-browser-inline">'
-    +     '<nav class="folder-breadcrumb" id="folderBreadcrumb"></nav>'
-    +     '<div class="folder-list" id="folderList"></div>'
-    +   '</div>'
-    +   '<div class="folder-options">'
-    +     '<label class="folder-option">'
-    +       '<span>' + t('albums.opt.include_sub') + '</span>'
-    +       '<span class="toggle-switch"><input type="checkbox" id="optIncludeSubfolders" checked onchange="toggleIncludeSubfolders(this.checked)"><span class="toggle-slider"></span></span>'
-    +     '</label>'
-    +     '<label class="folder-option">'
-    +       '<span>' + t('albums.opt.filter_sys') + '<span class="folder-option-help" title="' + t('albums.opt.filter_sys.tip') + '">?</span></span>'
-    +       '<span class="toggle-switch"><input type="checkbox" id="optFilterSystemDirs" checked onchange="toggleFilterSystemDirs(this.checked)"><span class="toggle-slider"></span></span>'
-    +     '</label>'
-    +   '</div>'
-    + '</div>'
-    + '<div id="wizardStep3" class="wizard-step" style="display:none">'
-    +   '<div class="wizard-step-label">' + t('wizard.step.devices') + '</div>'
-    +   '<div style="color:#888;font-size:13px;margin-bottom:8px">' + t('wizard.step.devices.hint') + '</div>'
-    +   '<div class="device-pick-grid" id="wizardDeviceGrid"></div>'
-    +   '<div class="wizard-step-label" style="margin-top:16px">' + t('wizard.step.schedule') + '</div>'
-    +   '<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">'
-    +     '<label style="display:flex;align-items:center;gap:6px;font-size:14px">'
-    +       '<span>' + t('bind.time') + '</span>'
-    +       '<input type="time" id="wizardTime" value="08:00" style="padding:4px 8px;border:1px solid #ddd;border-radius:6px">'
-    +     '</label>'
-    +     '<label style="display:flex;align-items:center;gap:6px;font-size:14px">'
-    +       '<span>' + t('bind.resize') + '</span>'
-    +       '<select id="wizardResize" style="padding:4px 8px;border:1px solid #ddd;border-radius:6px">'
-    +         '<option value="blur">' + t('sched.resize.blur') + '</option>'
-    +         '<option value="isfr">' + t('sched.resize.isfr') + '</option>'
-    +         '<option value="crop">' + t('sched.resize.crop') + '</option>'
-    +       '</select>'
-    +     '</label>'
-    +   '</div>'
-    + '</div>';
+  document.getElementById('wizardAlbumName').value = '';
+  document.getElementById('wizardAlbumName').dataset.userEdited = '';
+  document.getElementById('optIncludeSubfolders').checked = true;
+  document.getElementById('optFilterSystemDirs').checked = true;
+  document.getElementById('wizardTime').value = '08:00';
+  document.getElementById('wizardResize').value = 'blur';
 
-  inkModalShow(t('wizard.title'), bodyHtml, [
-    { label: t('albums.modal.cancel'), cls: 'ink-btn-secondary', onClick: inkModalCancel },
-    { label: t('wizard.next'), cls: 'ink-btn-primary', onClick: wizardGoStep2, id: 'wizardNextStep1' },
-  ]);
-
-  setTimeout(function() {
-    var inp = document.getElementById('wizardAlbumName');
-    if (inp) {
-      inp.focus();
-      inp.addEventListener('keydown', function(e) { if (e.key === 'Enter') wizardGoStep2(); });
-    }
-  }, 50);
-}
-
-function wizardGoStep2() {
-  var nameInput = document.getElementById('wizardAlbumName');
-  var name = nameInput ? nameInput.value.trim() : '';
-  if (!name) { nameInput.focus(); return; }
-
-  picker.albumName = name;
-  wizardStep = 2;
-
-  document.getElementById('wizardStep2').style.display = '';
-  nameInput.readOnly = true;
-  nameInput.style.opacity = '.6';
-
-  var footer = document.getElementById('inkModalFooter');
-  footer.innerHTML = '';
-
-  var cancelBtn = document.createElement('button');
-  cancelBtn.className = 'ink-btn ink-btn-secondary';
-  cancelBtn.textContent = t('albums.modal.cancel');
-  cancelBtn.onclick = inkModalCancel;
-  footer.appendChild(cancelBtn);
-
-  var btn = document.createElement('button');
-  btn.className = 'ink-btn ink-btn-primary';
-  btn.id = 'wizardNextStep2';
-  btn.textContent = t('wizard.next');
-  btn.disabled = true;
-  btn.style.opacity = '.4';
-  btn.onclick = wizardGoStep3;
-  footer.appendChild(btn);
+  document.getElementById('mainView').style.display = 'none';
+  document.getElementById('wizardPage').style.display = '';
 
   browseFolders('');
+  loadWizardDevices();
+  updateWizardCreateBtn();
 
-  setTimeout(function() {
-    var step2 = document.getElementById('wizardStep2');
-    if (step2) step2.scrollIntoView({behavior: 'smooth', block: 'start'});
-  }, 100);
+  setTimeout(function() { document.getElementById('wizardAlbumName').focus(); }, 50);
 }
 
-async function wizardGoStep3() {
-  if (picker.selected.size === 0) return;
+function closeWizard() {
+  document.getElementById('wizardPage').style.display = 'none';
+  document.getElementById('mainView').style.display = '';
+}
 
-  wizardStep = 3;
-  document.getElementById('wizardStep3').style.display = '';
-
-  var footer = document.getElementById('inkModalFooter');
-  footer.innerHTML = '';
-
-  var cancelBtn = document.createElement('button');
-  cancelBtn.className = 'ink-btn ink-btn-secondary';
-  cancelBtn.textContent = t('albums.modal.cancel');
-  cancelBtn.onclick = inkModalCancel;
-  footer.appendChild(cancelBtn);
-
-  var skipBtn = document.createElement('button');
-  skipBtn.className = 'ink-btn ink-btn-secondary';
-  skipBtn.textContent = t('wizard.skip');
-  skipBtn.onclick = function() { wizardCreate(true); };
-  footer.appendChild(skipBtn);
-
-  var createBtn = document.createElement('button');
-  createBtn.className = 'ink-btn ink-btn-primary';
-  createBtn.textContent = t('wizard.create');
-  createBtn.onclick = function() { wizardCreate(false); };
-  footer.appendChild(createBtn);
-
+async function loadWizardDevices() {
   var grid = document.getElementById('wizardDeviceGrid');
   grid.innerHTML = '<div style="color:#999;font-size:13px">Loading...</div>';
 
   devicesList = await getDevices();
 
   if (!devicesList.length) {
-    grid.innerHTML = '<div style="color:#999;font-size:13px">No devices found</div>';
+    grid.innerHTML = '<div style="color:#999;font-size:13px">' + t('wizard.devices.none') + '</div>';
   } else {
     grid.innerHTML = devicesList.map(function(dev) {
-      var statusColor = (dev.status === 1 || dev.status === 'online') ? '#4caf50' : '#ccc';
-      return '<div class="device-pick-item" data-device-id="' + esc(dev.deviceId) + '" onclick="toggleDevicePick(this,\'' + esc(dev.deviceId) + '\')">'
-        + '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + statusColor + ';margin-right:6px"></span>'
-        + esc(dev.deviceName || dev.deviceId)
+      var isOnline = dev.status === 'ONLINE' || dev.status === 1;
+      var w = dev.resolution ? dev.resolution.width : 800;
+      var h = dev.resolution ? dev.resolution.height : 480;
+      var orientCls = w >= h ? 'is-landscape' : 'is-portrait';
+      var thumb = dev.lastPlayThumbnailUrl;
+      var thumbHtml = thumb ? '<img class="frame-thumb" src="' + esc(thumb) + '" alt="">' : '';
+      var statusCls = isOnline ? 'status-online' : 'status-offline';
+      var statusTxt = t(isOnline ? 'wizard.status.online' : 'wizard.status.offline');
+
+      return '<div class="device-card" data-device-id="' + esc(dev.deviceId) + '" onclick="toggleDevicePick(this,\'' + esc(dev.deviceId) + '\')">'
+        + '<div class="device-card-frame-box">'
+        + '<div class="device-card-frame ' + orientCls + '" style="aspect-ratio:' + w + '/' + h + '">' + thumbHtml + '</div>'
+        + '</div>'
+        + '<div class="device-card-name">' + esc(dev.deviceName || dev.deviceId) + '</div>'
+        + '<div class="device-card-status"><span class="' + statusCls + '">' + statusTxt + '</span></div>'
+        + '<div class="selected-badge"></div>'
         + '</div>';
     }).join('');
   }
-
-  setTimeout(function() {
-    var step3 = document.getElementById('wizardStep3');
-    if (step3) step3.scrollIntoView({behavior: 'smooth', block: 'start'});
-  }, 100);
 }
 
 function toggleDevicePick(el, deviceId) {
   var dev = devicesList.find(function(d) { return d.deviceId === deviceId; });
   if (!dev) return;
 
-  if (el.classList.contains('picked')) {
-    el.classList.remove('picked');
+  if (el.classList.contains('selected')) {
+    el.classList.remove('selected');
     pickedDevices.delete(deviceId);
   } else {
-    el.classList.add('picked');
+    el.classList.add('selected');
     pickedDevices.add(deviceId);
   }
+
+  updateWizardCreateBtn();
 }
 
-async function wizardCreate(skipBinding) {
-  var albumName = picker.albumName;
+async function wizardCreate() {
+  var albumName = document.getElementById('wizardAlbumName').value.trim();
   var selectedFolders = Array.from(picker.selected);
+  if (!albumName || !selectedFolders.length) return;
 
-  var footer = document.getElementById('inkModalFooter');
-  footer.querySelectorAll('button').forEach(function(b) { b.disabled = true; b.style.opacity = '.5'; });
+  var btn = document.getElementById('wizardCreateBtn');
+  btn.disabled = true;
+  btn.style.opacity = '.5';
 
   var albumResp = await fetch('/api/nas-albums', {
     method: 'POST',
@@ -579,11 +592,12 @@ async function wizardCreate(skipBinding) {
 
   if (!albumResp.success) {
     alert(albumResp.error);
-    footer.querySelectorAll('button').forEach(function(b) { b.disabled = false; b.style.opacity = ''; });
+    btn.disabled = false;
+    btn.style.opacity = '';
     return;
   }
 
-  if (!skipBinding && pickedDevices.size > 0) {
+  if (pickedDevices.size > 0) {
     var time = document.getElementById('wizardTime').value;
     var resize = document.getElementById('wizardResize').value;
     var folderPath = selectedFolders[0];
@@ -616,7 +630,7 @@ async function wizardCreate(skipBinding) {
     }
   }
 
-  inkModalHide();
+  closeWizard();
   loadAlbums();
 }
 
@@ -633,7 +647,7 @@ async function addBinding(albumId) {
   var available = devices.filter(function(d) { return !boundDeviceIds[d.deviceId]; });
 
   if (!available.length) {
-    await inkConfirm(t('bind.modal.title'), getLang() === 'zh' ? '所有设备已绑定此相册' : 'All devices are already bound to this album');
+    await inkConfirm(t('bind.modal.title'), getLang() === 'zh' ? '所有相框都已添加' : 'All frames are already added');
     return;
   }
 
@@ -740,7 +754,7 @@ async function deleteBinding(scheduleId, deviceName) {
   else alert(resp.error);
 }
 
-// ── 相册菜单 ────────────────────────────────────────────────────────────────
+// ── 自动播放菜单 ────────────────────────────────────────────────────────────
 
 function showAlbumMenu(event, albumId, albumName) {
   var existing = document.querySelector('.album-menu-dropdown');
@@ -809,7 +823,7 @@ async function openQuickPush() {
   qpBrowsePath = '';
 
   var pills = albumsData.map(function(a) {
-    return '<span class="device-pick-item" onclick="qpLoadAlbum(' + a.id + ')" data-album="' + a.id + '">' + esc(a.name) + '</span>';
+    return '<span class="device-pick-item" onclick="qpLoadAlbum(' + a.id + ')" data-album="' + a.id + '">' + esc(albumSourceLabel(a)) + '</span>';
   }).join('');
 
   var browsePill = '<span class="device-pick-item" onclick="qpBrowseMode()" data-browse="1">' + (getLang() === 'zh' ? '📂 浏览文件夹' : '📂 Browse Folders') + '</span>';
@@ -892,11 +906,6 @@ async function qpLoadFolder(path) {
   var images = resp.items.filter(function(i) { return i.type === 'image'; });
 
   var html = '<div style="padding:6px 8px;background:#f8f9fa;border-radius:4px;font-size:13px;margin-bottom:8px">' + bcHtml + '</div>';
-
-  if (path) {
-    var parent = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '';
-    html += '<div style="padding:6px 8px;cursor:pointer;font-size:13px" onclick="qpLoadFolder(\'' + parent + '\')">⬆️ ..</div>';
-  }
 
   dirs.forEach(function(d) {
     html += '<div style="padding:6px 8px;cursor:pointer;font-size:13px" onclick="qpLoadFolder(\'' + d.path + '\')">📁 ' + esc(d.name) + '</div>';

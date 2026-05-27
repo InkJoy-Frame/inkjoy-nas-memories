@@ -489,20 +489,32 @@ body {
 }
 .btn-sm-primary:hover { background: var(--ink-dark); }
 
-/* ── 向导步骤 ──────────────────────────────────────────────────────────── */
-.wizard-step {
-  margin-top: 1rem;
+/* ── 向导全页面 ──────────────────────────────────────────────────────── */
+.wizard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: .75rem;
+  padding: 0 .25rem;
+}
+.wizard-card { margin-bottom: .75rem; }
+.wizard-step-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: .75rem;
+}
+.wizard-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: .75rem;
+  margin-top: 1.5rem;
   padding-top: 1rem;
   border-top: 1px solid #eee;
 }
-.wizard-step-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: #475569;
-  margin-bottom: .5rem;
-}
+#wizardPage .folder-browser-inline { max-height: 400px; }
 
-/* ── 设备多选网格 ──────────────────────────────────────────────────────── */
+/* ── 设备多选网格（快速推送用） ────────────────────────────────────────── */
 .device-pick-grid {
   display: flex;
   flex-wrap: wrap;
@@ -526,6 +538,95 @@ body {
   font-weight: 600;
 }
 
+/* ── 设备卡片网格（向导用，对齐 webtool） ─────────────────────────────── */
+.device-card-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.device-card {
+  position: relative;
+  border: 2px solid #e2e8f0;
+  border-radius: .75rem;
+  padding: .875rem .75rem .75rem;
+  cursor: pointer;
+  transition: all .2s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 148px;
+  flex: 0 0 auto;
+}
+.device-card:hover { border-color: var(--ink); background: var(--ink-light); }
+.device-card.selected {
+  border-color: var(--ink);
+  background: var(--ink-light);
+  box-shadow: 0 0 0 3px rgba(30,77,59,.15);
+}
+.device-card-frame-box {
+  width: 112px; height: 112px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.device-card-frame {
+  box-sizing: border-box; position: relative; overflow: hidden;
+  border: 2px solid #8a5a2b; background: #d4d4d4;
+  box-shadow: inset 0 0 0 2px #f5f1dc; border-radius: 2px;
+}
+.device-card-frame.is-landscape { width: calc(100% - 8px); height: auto; }
+.device-card-frame.is-portrait  { height: calc(100% - 8px); width: auto; }
+.frame-thumb {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; object-position: center;
+}
+.device-card-name {
+  width: 100%; text-align: center; font-weight: 600;
+  font-size: .85rem; line-height: 1.2;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-top: .5rem;
+}
+.device-card-status {
+  display: flex; align-items: center; gap: .4rem;
+  margin-top: .25rem; font-size: .72rem; color: #94a3b8;
+}
+.status-online, .status-offline {
+  display: inline-flex; align-items: center; gap: .25rem;
+}
+.status-online::before, .status-offline::before {
+  content: ''; width: 7px; height: 7px; border-radius: 50%;
+}
+.status-online::before { background: #34c759; box-shadow: 0 0 0 2px rgba(52,199,89,.22); }
+.status-offline { color: #ef4444; font-weight: 600; }
+.status-offline::before { background: #ef4444; }
+.selected-badge {
+  position: absolute; top: 6px; right: 6px;
+  width: 18px; height: 18px; background: var(--ink);
+  border-radius: 50%; display: none;
+  align-items: center; justify-content: center;
+}
+.device-card.selected .selected-badge { display: flex; }
+.selected-badge::after { content: '✓'; color: white; font-size: .65rem; font-weight: 700; }
+
+/* ── 向导表单行 ───────────────────────────────────────────────────────── */
+.wizard-form-row {
+  display: flex; gap: 1rem; flex-wrap: wrap;
+}
+.wizard-form-group {
+  display: flex; flex-direction: column; gap: .375rem; flex: 1; min-width: 160px;
+}
+.wizard-form-group label {
+  font-size: .8rem; font-weight: 600; color: #475569;
+}
+.wizard-form-group input,
+.wizard-form-group select {
+  padding: .5rem .75rem; border: 1.5px solid #e2e8f0;
+  border-radius: .5rem; font-size: .9rem; color: #1e293b;
+  outline: none; transition: border-color .2s;
+}
+.wizard-form-group input:focus,
+.wizard-form-group select:focus {
+  border-color: var(--ink); box-shadow: 0 0 0 3px rgba(30,77,59,.12);
+}
+
 /* ── 响应式（移动端）─────────────────────────────────────────────────── */
 @media (max-width: 767px) {
   .page-content { padding: .75rem .5rem; }
@@ -534,168 +635,7 @@ body {
 }
 
 
-/* ── Bootstrap 卡片覆盖 ─────────────────────────────────────────────────── */
-.card {
-  border: 1px solid #dae8e2;
-  box-shadow: var(--card-shadow);
-  border-radius: .75rem;
-}
-.card-header {
-  background: #f0f7f4;
-  border-bottom: 1px solid #dae8e2;
-  border-radius: .75rem .75rem 0 0 !important;
-  font-size: .85rem;
-}
-
-/* ── 区域卡片（白色圆角容器）─────────────────────────────────────────────── */
-.section-card {
-  background: white;
-  border-radius: 1.25rem;
-  padding: 1.75rem;
-  border: none;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-  margin-bottom: 2rem;
-}
-.section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1.25rem;
-}
-.section-title {
-  font-size: 1rem;
-  font-weight: 600;
-  color: #1e293b;
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-}
-
-
-
-
-/* ── 空状态 ──────────────────────────────────────────────────────────────── */
-.empty-state {
-  text-align: center;
-  padding: 4rem 1rem;
-}
-
-/* ── 文件浏览器 ─────────────────────────────────────────────────────────── */
-.file-list {
-  overflow-y: auto;
-  height: 420px;
-}
-.file-item {
-  padding: .45rem .75rem;
-  border-bottom: 1px solid #f0f7f4;
-  cursor: pointer;
-  transition: background .12s;
-  font-size: .825rem;
-  display: flex;
-  align-items: center;
-  gap: .5rem;
-}
-.file-item:hover { background: #f4f9f7; }
-.file-item.selected {
-  background: #e6f4ee;
-  border-left: 3px solid var(--ink);
-}
-.img-item { padding: .35rem .65rem; }
-.img-item img {
-  width: 44px;
-  height: 44px;
-  object-fit: cover;
-  border-radius: .35rem;
-  background: #dae8e2;
-  flex-shrink: 0;
-}
-.img-meta { flex: 1; min-width: 0; }
-.img-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: .8rem;
-}
-.img-size { font-size: .7rem; }
-.dir-item { color: #374151; }
-
-/* ── 文件夹浏览器 ──────────────────────────────────────────────────────── */
-.folder-item {
-  padding: .55rem .85rem;
-  cursor: pointer;
-  font-size: .85rem;
-  transition: background .12s;
-  border-bottom: 1px solid #f4f9f7;
-}
-.folder-item:hover { background: #eaf4ef; }
-.folder-item.selected {
-  background: #d0ede0;
-  color: var(--ink);
-  font-weight: 500;
-}
-
-
-
-/* ── 相册管理 ───────────────────────────────────────────────────────────── */
-.section-title {
-  font-size: 15px; font-weight: 700; color: var(--ink);
-  display: flex; align-items: center; gap: 8px;
-  margin-bottom: 14px;
-}
-.section-title .section-icon { font-size: 18px; }
-.section-gap { margin-top: 36px; }
-.count-tag {
-  font-size: 11px; font-weight: 500; color: #666;
-  background: #e8ede9; padding: 2px 8px; border-radius: 10px;
-}
-
-.album-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(152px, 1fr));
-  gap: 16px;
-}
-.album-card {
-  background: #fff; border-radius: 12px; overflow: hidden;
-  box-shadow: 0 1px 4px rgba(0,0,0,.08); cursor: pointer;
-  transition: box-shadow .2s, transform .15s;
-  border: 2px solid transparent; position: relative;
-}
-.album-card:hover {
-  box-shadow: 0 4px 16px rgba(30,77,59,.15);
-  transform: translateY(-2px); border-color: var(--ink);
-}
-.album-cover {
-  aspect-ratio: 1; background: #e8e8e8; position: relative; overflow: hidden;
-  display: flex; align-items: center; justify-content: center;
-}
-.album-cover img { width: 100%; height: 100%; object-fit: cover; }
-.album-cover .placeholder { font-size: 40px; color: #bbb; }
-.album-info { padding: 10px 12px; }
-.album-name {
-  font-size: 14px; font-weight: 600;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.album-count { font-size: 12px; color: #888; margin-top: 2px; }
-
-.album-card-new {
-  background: none; border: 2px dashed #b0bfb8; border-radius: 12px;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  cursor: pointer; transition: border-color .2s, background .2s;
-  min-height: 200px;
-}
-.album-card-new:hover { border-color: var(--ink); background: rgba(30,77,59,.04); }
-.album-card-new .plus { font-size: 36px; color: var(--ink); font-weight: 300; line-height: 1; }
-.album-card-new .label { font-size: 13px; color: var(--ink); font-weight: 600; margin-top: 8px; }
-
-.album-menu-btn {
-  position: absolute; top: 6px; right: 6px;
-  background: rgba(255,255,255,.85); border: none; border-radius: 50%;
-  width: 28px; height: 28px; font-size: 16px; cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  opacity: 0; transition: opacity .2s;
-  color: #333;
-}
-.album-card:hover .album-menu-btn { opacity: 1; }
+/* ── 自动播放菜单 ──────────────────────────────────────────────────────── */
 .album-menu-dropdown {
   position: fixed; z-index: 1050;
   background: #fff; border-radius: 8px;
@@ -707,24 +647,6 @@ body {
   text-align: left; padding: 8px 16px; font-size: 14px; cursor: pointer;
 }
 .album-menu-dropdown button:hover { background: #f0f7f4; }
-
-.album-empty-hint {
-  padding: 24px; text-align: center; color: #888; font-size: 14px;
-}
-
-/* 相册详情 */
-.album-detail-header {
-  display: flex; align-items: center; gap: 16px; margin-bottom: 20px;
-}
-.album-back-btn {
-  border: none; background: none; color: var(--ink);
-  font-size: 14px; font-weight: 600; cursor: pointer;
-  padding: 4px 8px; border-radius: 6px;
-}
-.album-back-btn:hover { background: #e8ede9; }
-.album-detail-title {
-  font-size: 20px; font-weight: 700; margin: 0;
-}
 
 .photo-grid {
   display: grid;
@@ -888,6 +810,7 @@ body {
   position: relative; display: inline-block;
   width: 40px; height: 22px; flex-shrink: 0;
 }
+.toggle-switch input { position: absolute; opacity: 0; width: 0; height: 0; }
 .toggle-slider {
   position: absolute; inset: 0; cursor: pointer;
   background: #cbd5e1; border-radius: 11px;
