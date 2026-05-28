@@ -560,7 +560,15 @@ def api_schedules_run(sid):
 @app.route('/api/nas-albums/<int:album_id>/schedules')
 @login_required
 def api_nas_album_schedules(album_id):
-    from database import get_schedules_by_album
+    from database import get_nas_album, get_schedules_by_album
+    account_id, err = _require_account_id()
+
+    if err:
+        return err
+
+    if not get_nas_album(album_id, account_id):
+        return jsonify({'success': False, 'error': '相册不存在或无权限'}), 404
+
     return jsonify({'success': True, 'schedules': get_schedules_by_album(album_id)})
 
 
