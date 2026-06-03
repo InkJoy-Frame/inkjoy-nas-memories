@@ -115,6 +115,16 @@ def get_account(account_id):
     return dict(row) if row else None
 
 
+def get_saved_account():
+    """取最近更新 token 的账号，用于 session 恢复。"""
+    conn = get_db()
+    row = conn.execute(
+        'SELECT * FROM accounts WHERE token IS NOT NULL ORDER BY token_updated_at DESC LIMIT 1'
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
 def get_all_accounts():
     conn = get_db()
     rows = conn.execute(

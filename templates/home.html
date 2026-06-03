@@ -517,7 +517,7 @@ function openWizard() {
   loadWizardDevices();
   updateWizardCreateBtn();
 
-  setTimeout(function() { document.getElementById('wizardAlbumName').focus(); }, 50);
+  setTimeout(function() { window.scrollTo(0, 0); }, 50);
 }
 
 function closeWizard() {

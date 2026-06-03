@@ -14,7 +14,7 @@ scheduler = BackgroundScheduler(timezone=_tz)
 
 _images_dir = '/images'
 
-IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.bmp'}
+IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif'}
 
 
 def init_scheduler(app):
@@ -29,13 +29,13 @@ def init_scheduler(app):
     loaded = 0
     for schedule in get_all_schedules():
         if schedule['enabled']:
-            _add_job(schedule)
+            add_job(schedule)
             loaded += 1
 
     logger.info(f'Scheduler started (tz={_tz}), loaded {loaded} job(s).')
 
 
-def _add_job(schedule):
+def add_job(schedule):
     try:
         hour, minute = schedule['schedule_time'].split(':')
         trigger = CronTrigger(hour=int(hour), minute=int(minute), timezone=_tz)
@@ -55,10 +55,6 @@ def _add_job(schedule):
         )
     except Exception as e:
         logger.error(f"Failed to add job for schedule {schedule['id']}: {e}")
-
-
-def add_job(schedule):
-    _add_job(schedule)
 
 
 def remove_job(schedule_id):
@@ -124,6 +120,19 @@ def _pick_random_image(schedule_id, folder, max_scan=2000):
 
     logger.info(f'[schedule:{schedule_id}] scanned {count} image(s) recursively in {folder}')
     return chosen
+
+
+def _ensure_rgb(img):
+    """RGBA/其他模式 → RGB，白底合成透明通道。"""
+    if img.mode == 'RGBA':
+        bg = Image.new('RGB', img.size, (255, 255, 255))
+        bg.paste(img, mask=img.split()[3])
+        return bg
+
+    if img.mode != 'RGB':
+        return img.convert('RGB')
+
+    return img
 
 
 def _apply_blur_fill(img, device_width, device_height):
@@ -201,14 +210,7 @@ def execute_schedule(schedule_id):
         # 避免发送超大原图导致服务器 ISFR 算法处理失败（system error）
         if resize_mode == 'isfr':
             with Image.open(image_path) as orig:
-                img = orig.copy()
-            if img.mode not in ('RGB',):
-                if img.mode == 'RGBA':
-                    bg = Image.new('RGB', img.size, (255, 255, 255))
-                    bg.paste(img, mask=img.split()[3])
-                    img = bg
-                else:
-                    img = img.convert('RGB')
+                img = _ensure_rgb(orig.copy())
 
             # 计算等比缩小目标：不超过设备分辨率的 1.5 倍（若无设备信息则限制 3000px）
             max_w = int((device_width or 2000) * 1.5)
@@ -231,15 +233,7 @@ def execute_schedule(schedule_id):
             return
 
         with Image.open(image_path) as orig:
-            img = orig.copy()
-
-        # Mode conversion (outside `with` to avoid closed-file issues after copy)
-        if img.mode not in ('RGB', 'RGBA'):
-            img = img.convert('RGB')
-        if img.mode == 'RGBA':
-            bg = Image.new('RGB', img.size, (255, 255, 255))
-            bg.paste(img, mask=img.split()[3])
-            img = bg
+            img = _ensure_rgb(orig.copy())
 
         if device_width and device_height:
             logger.info(

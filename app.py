@@ -51,12 +51,17 @@ def auto_restore_session():
 
     try:
         from database import get_saved_account
+        from api_client import SERVERS
+
         account = get_saved_account()
+
         if not account or not account.get('token'):
             return
+
         session.permanent = True
         session['token'] = account['token']
         session['server_url'] = account['server_url']
+        session['server_key'] = next((k for k, v in SERVERS.items() if v == account['server_url']), 'unknown')
         session['email'] = account['email']
         session['account_id'] = account['id']
         logging.getLogger(__name__).info(
@@ -197,9 +202,12 @@ def login():
 
 def _finish_login(email, password, server_url, login_data):
     from database import save_account
+    from api_client import SERVERS
+
     session.permanent = True
     session['token'] = login_data['token']
     session['server_url'] = server_url
+    session['server_key'] = next((k for k, v in SERVERS.items() if v == server_url), 'unknown')
     session['email'] = email
 
     account_id = save_account(
@@ -443,9 +451,11 @@ def api_image():
 @login_required
 def api_schedules_list():
     from database import get_all_schedules
-    account_id = session.get('account_id')
-    if not account_id:
-        return jsonify({'success': False, 'error': '未登录账号上下文'}), 401
+    account_id, err = _require_account_id()
+
+    if err:
+        return err
+
     return jsonify({'success': True, 'schedules': get_all_schedules(account_id=account_id)})
 
 
@@ -454,9 +464,11 @@ def api_schedules_list():
 def api_schedules_create():
     from database import create_schedule, get_schedule
     from scheduler_manager import add_job
-    account_id = session.get('account_id')
-    if not account_id:
-        return jsonify({'success': False, 'error': '未登录账号上下文'}), 401
+    account_id, err = _require_account_id()
+
+    if err:
+        return err
+
     data = request.get_json()
     if not data:
         return jsonify({'success': False, 'error': '缺少请求数据'}), 400
@@ -475,9 +487,11 @@ def api_schedules_create():
 def api_schedules_update(sid):
     from database import update_schedule, get_schedule
     from scheduler_manager import add_job, remove_job
-    account_id = session.get('account_id')
-    if not account_id:
-        return jsonify({'success': False, 'error': '未登录账号上下文'}), 401
+    account_id, err = _require_account_id()
+
+    if err:
+        return err
+
     data = request.get_json()
     if not data:
         return jsonify({'success': False, 'error': '缺少请求数据'}), 400
@@ -500,9 +514,10 @@ def api_schedules_update(sid):
 def api_schedules_delete(sid):
     from database import delete_schedule
     from scheduler_manager import remove_job
-    account_id = session.get('account_id')
-    if not account_id:
-        return jsonify({'success': False, 'error': '未登录账号上下文'}), 401
+    account_id, err = _require_account_id()
+
+    if err:
+        return err
     try:
         deleted = delete_schedule(sid, account_id=account_id)
         if not deleted:
@@ -518,9 +533,10 @@ def api_schedules_delete(sid):
 def api_schedules_toggle(sid):
     from database import toggle_schedule, get_schedule
     from scheduler_manager import add_job, remove_job
-    account_id = session.get('account_id')
-    if not account_id:
-        return jsonify({'success': False, 'error': '未登录账号上下文'}), 401
+    account_id, err = _require_account_id()
+
+    if err:
+        return err
     data = request.get_json() or {}
     enabled = data.get('enabled', True)
     try:
@@ -541,9 +557,10 @@ def api_schedules_toggle(sid):
 def api_schedules_run(sid):
     from database import get_schedule
     from scheduler_manager import execute_schedule
-    account_id = session.get('account_id')
-    if not account_id:
-        return jsonify({'success': False, 'error': '未登录账号上下文'}), 401
+    account_id, err = _require_account_id()
+
+    if err:
+        return err
     try:
         s = get_schedule(sid, account_id=account_id)
         if not s:
