@@ -67,8 +67,8 @@ jobs:
             ```
 
             ### 支持架构
-            - `linux/amd64` (x86_64) — 适用于一般 PC / 服务器 / 群晖 x86 NAS
-            - `linux/arm64` (aarch64) — 适用于树莓派 / 群晖 ARM NAS / 威联通 ARM NAS
+            - `linux/amd64` (x86_64) — 群晖 / 威联通 / 绿联 DXP 系列 / PC / 服务器
+            - `linux/arm64` (aarch64) — 绿联 DH 系列 / 树莓派 / ARM NAS
 
             ### 快速使用
 

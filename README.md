@@ -50,8 +50,8 @@ Open `http://<nas-ip>:8080`, log in with your InkJoy account.
 
 | Architecture | Devices |
 |---|---|
-| `linux/amd64` (x86_64) | Intel/AMD NAS (Synology, QNAP, etc.), PC, server |
-| `linux/arm64` (aarch64) | ARM NAS, Raspberry Pi |
+| `linux/amd64` (x86_64) | Synology, QNAP, UGREEN DXP series, PC, server |
+| `linux/arm64` (aarch64) | UGREEN DH series, Raspberry Pi, ARM NAS |
 
 ### Local Development (no Docker)
 
