@@ -12,13 +12,46 @@ Turn your NAS into an auto-play photo stream for InkJoy ePaper frames — pick f
 
 ## Quick Start
 
-### Docker Compose
+### Docker (recommended)
+
+Pre-built multi-arch images are available on GitHub Container Registry, supporting both x86_64 and ARM64 NAS devices.
 
 ```bash
-docker-compose up --build
+docker run -d \
+  --name inkjoy-manager \
+  -p 8080:8080 \
+  -v /path/to/your/photos:/images \
+  -v /path/to/data:/data \
+  -e SECRET_KEY=your-secret-key \
+  -e TZ=Asia/Shanghai \
+  ghcr.io/inkjoy-frame/inkjoy-nas-memories:latest
 ```
 
-Open `http://localhost:8080`, log in with your InkJoy account.
+Or use Docker Compose:
+
+```yaml
+services:
+  inkjoy-manager:
+    image: ghcr.io/inkjoy-frame/inkjoy-nas-memories:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - /path/to/your/photos:/images
+      - /path/to/data:/data
+    environment:
+      - SECRET_KEY=your-secret-key
+      - TZ=Asia/Shanghai
+    restart: unless-stopped
+```
+
+Open `http://<nas-ip>:8080`, log in with your InkJoy account.
+
+### Supported Architectures
+
+| Architecture | Devices |
+|---|---|
+| `linux/amd64` (x86_64) | Intel/AMD NAS (Synology, QNAP, etc.), PC, server |
+| `linux/arm64` (aarch64) | ARM NAS, Raspberry Pi |
 
 ### Local Development (no Docker)
 
@@ -56,10 +89,17 @@ python app.py
 | `IMAGES_DIR` | `/images` | Image library directory |
 | `DATA_DIR` | `/data` | SQLite data directory |
 
-## Build Scripts
+## Releases
 
-- `build-export-x86.ps1`: Build/export **x86_64 / linux/amd64** image tar (Intel/AMD NAS)；默认输出 `inkjoy-manager-x86.tar`
-- `build-export-arm.ps1`: Build/export **ARM64** image tar；默认输出 `inkjoy-manager-arm64.tar`
+Docker images are automatically built and published on every version tag via GitHub Actions. See [Releases](https://github.com/InkJoy-Frame/inkjoy-nas-memories/releases) for all versions.
+
+To update to the latest version:
+
+```bash
+docker pull ghcr.io/inkjoy-frame/inkjoy-nas-memories:latest
+docker stop inkjoy-manager && docker rm inkjoy-manager
+# Re-run the docker run command above
+```
 
 ## API Dependency
 
