@@ -20,6 +20,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Lowercase image name
+        id: image
+        run: echo "NAME=${IMAGE_NAME,,}" >> $GITHUB_OUTPUT
+        env:
+          IMAGE_NAME: ${{ github.repository }}
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -44,8 +50,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ steps.image.outputs.NAME }}:${{ steps.version.outputs.VERSION }}
+            ${{ env.REGISTRY }}/${{ steps.image.outputs.NAME }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -57,7 +63,7 @@ jobs:
             ## Docker 镜像
 
             ```bash
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
+            docker pull ${{ env.REGISTRY }}/${{ steps.image.outputs.NAME }}:${{ steps.version.outputs.VERSION }}
             ```
 
             ### 支持架构
@@ -74,5 +80,5 @@ jobs:
               -v /your/data:/data \
               -e SECRET_KEY=your-secret-key \
               -e TZ=Asia/Shanghai \
-              ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
+              ${{ env.REGISTRY }}/${{ steps.image.outputs.NAME }}:${{ steps.version.outputs.VERSION }}
             ```
