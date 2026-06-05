@@ -77,7 +77,6 @@ const I18N = {
 
     /* ── Schedules（绑定行用） ────────────────────── */
     'sched.resize.blur':       'Blur Fill (frosted glass padding)',
-    'sched.resize.isfr':       'ISFR Smart Crop (upload original)',
     'sched.resize.crop':       'Center Crop (fills screen)',
     'sched.btn.run':           'Run Now',
     'sched.btn.delete':        'Delete',
@@ -85,7 +84,6 @@ const I18N = {
     'sched.badge.err':         'Last: Failed',
     'sched.badge.never':       'Never run',
     'sched.resize.blur.short': 'Blur',
-    'sched.resize.isfr.short': 'ISFR',
     'sched.resize.crop.short': 'Crop',
     'sched.del.confirm':       'Delete task "{name}"?\nThis cannot be undone.',
   },
@@ -159,7 +157,6 @@ const I18N = {
 
     /* ── Schedules（绑定行用） ────────────────────── */
     'sched.resize.blur':       '适应填充（毛玻璃）',
-    'sched.resize.isfr':       'ISFR 智能裁切（上传原图）',
     'sched.resize.crop':       '中心裁切（铺满屏幕）',
     'sched.btn.run':           '立即执行',
     'sched.btn.delete':        '删除',
@@ -167,7 +164,6 @@ const I18N = {
     'sched.badge.err':         '上次失败',
     'sched.badge.never':       '从未运行',
     'sched.resize.blur.short': '毛玻璃',
-    'sched.resize.isfr.short': 'ISFR',
     'sched.resize.crop.short': '裁切',
     'sched.del.confirm':       '确认删除「{name}」？\n此操作不可恢复。',
   },

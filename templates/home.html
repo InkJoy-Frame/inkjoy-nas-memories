@@ -79,7 +79,6 @@
           <label data-i18n="bind.resize">Fill Mode</label>
           <select id="wizardResize">
             <option value="blur" data-i18n="sched.resize.blur">Blur Fill</option>
-            <option value="isfr" data-i18n="sched.resize.isfr">ISFR Smart Crop</option>
             <option value="crop" data-i18n="sched.resize.crop">Center Crop</option>
           </select>
         </div>
@@ -278,7 +277,6 @@ function renderAlbumCard(album) {
 function resizeLabel(m) {
   return ({
     blur: t('sched.resize.blur.short'),
-    isfr: t('sched.resize.isfr.short'),
     crop: t('sched.resize.crop.short'),
   })[m] || m;
 }
@@ -525,6 +523,62 @@ function closeWizard() {
   document.getElementById('mainView').style.display = '';
 }
 
+function orientedSize(dev) {
+  var res = dev && dev.resolution;
+  if (!res || !res.width || !res.height) return null;
+  return dev.orientation === 90
+    ? { w: res.height, h: res.width }
+    : { w: res.width,  h: res.height };
+}
+
+function deviceCardHtml(dev) {
+  var size = orientedSize(dev);
+  var frameInner = '';
+
+  if (size) {
+    var orientCls = size.w >= size.h ? 'is-landscape' : 'is-portrait';
+    var thumb = dev.lastPlayThumbnailUrl;
+    var thumbHtml = '';
+
+    if (thumb && dev.orientation === 90) {
+      var pw = (size.h / size.w * 100).toFixed(1);
+      var ph = (size.w / size.h * 100).toFixed(1);
+      thumbHtml = '<img class="frame-thumb frame-thumb-rot" style="width:' + pw + '%;height:' + ph + '%" src="' + esc(thumb) + '" alt="">';
+    } else if (thumb) {
+      thumbHtml = '<img class="frame-thumb" src="' + esc(thumb) + '" alt="">';
+    }
+
+    var isOffline = dev.status !== 'ONLINE' && dev.status !== 1;
+    var badge = isOffline ? '<div class="wifi-off-badge" title="' + t('wizard.status.offline') + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/><line x1="12" y1="20" x2="12.01" y2="20"/><line x1="3" y1="3" x2="21" y2="21" stroke-width="2.8"/></svg></div>' : '';
+
+    frameInner = '<div class="device-card-frame-box">'
+      + '<div class="device-card-frame ' + orientCls + '" style="aspect-ratio:' + size.w + '/' + size.h + '">' + thumbHtml + badge + '</div>'
+      + '</div>';
+  } else {
+    frameInner = '<div class="device-card-frame-box"></div>';
+  }
+
+  var isOnline = dev.status === 'ONLINE' || dev.status === 1;
+  var statusCls = isOnline ? 'status-online' : 'status-offline';
+  var statusTxt = t(isOnline ? 'wizard.status.online' : 'wizard.status.offline');
+  var statusHtml = '<span class="' + statusCls + '">' + statusTxt + '</span>';
+
+  var battery = dev.currentStatus && dev.currentStatus.battery;
+  if (battery != null) {
+    var batCls = battery < 20 ? 'danger' : (battery < 40 ? 'warn' : 'ok');
+    var fillW = Math.max(4, Math.min(100, battery));
+    statusHtml += '<span class="status-sep">·</span>'
+      + '<span class="battery ' + batCls + '">'
+      + '<span class="battery-icon"><span class="battery-fill" style="transform:scaleX(' + (fillW / 100) + ')"></span></span>'
+      + battery + '%</span>';
+  }
+
+  return frameInner
+    + '<div class="device-card-name">' + esc(dev.deviceName || dev.deviceId) + '</div>'
+    + '<div class="device-card-status">' + statusHtml + '</div>'
+    + '<div class="selected-badge"></div>';
+}
+
 async function loadWizardDevices() {
   var grid = document.getElementById('wizardDeviceGrid');
   grid.innerHTML = '<div style="color:#999;font-size:13px">Loading...</div>';
@@ -535,22 +589,8 @@ async function loadWizardDevices() {
     grid.innerHTML = '<div style="color:#999;font-size:13px">' + t('wizard.devices.none') + '</div>';
   } else {
     grid.innerHTML = devicesList.map(function(dev) {
-      var isOnline = dev.status === 'ONLINE' || dev.status === 1;
-      var w = dev.resolution ? dev.resolution.width : 800;
-      var h = dev.resolution ? dev.resolution.height : 480;
-      var orientCls = w >= h ? 'is-landscape' : 'is-portrait';
-      var thumb = dev.lastPlayThumbnailUrl;
-      var thumbHtml = thumb ? '<img class="frame-thumb" src="' + esc(thumb) + '" alt="">' : '';
-      var statusCls = isOnline ? 'status-online' : 'status-offline';
-      var statusTxt = t(isOnline ? 'wizard.status.online' : 'wizard.status.offline');
-
       return '<div class="device-card" data-device-id="' + esc(dev.deviceId) + '" onclick="toggleDevicePick(this,\'' + esc(dev.deviceId) + '\')">'
-        + '<div class="device-card-frame-box">'
-        + '<div class="device-card-frame ' + orientCls + '" style="aspect-ratio:' + w + '/' + h + '">' + thumbHtml + '</div>'
-        + '</div>'
-        + '<div class="device-card-name">' + esc(dev.deviceName || dev.deviceId) + '</div>'
-        + '<div class="device-card-status"><span class="' + statusCls + '">' + statusTxt + '</span></div>'
-        + '<div class="selected-badge"></div>'
+        + deviceCardHtml(dev)
         + '</div>';
     }).join('');
   }
@@ -669,7 +709,6 @@ async function addBinding(albumId) {
     +   '<div style="font-size:13px;font-weight:600;color:#475569;margin-bottom:.5rem">' + t('bind.resize') + '</div>'
     +   '<select id="bindResize" class="ink-modal-input" style="margin-top:0">'
     +     '<option value="blur">' + t('sched.resize.blur') + '</option>'
-    +     '<option value="isfr">' + t('sched.resize.isfr') + '</option>'
     +     '<option value="crop">' + t('sched.resize.crop') + '</option>'
     +   '</select>'
     + '</div>';

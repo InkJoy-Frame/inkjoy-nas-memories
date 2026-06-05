@@ -206,32 +206,6 @@ def execute_schedule(schedule_id):
         device_height = schedule.get('device_height')
         resize_mode = schedule.get('resize_mode', 'crop')
 
-        # ISFR 模式：保留完整画面（不裁切），但等比例缩小到设备分辨率的 1.5 倍以内
-        # 避免发送超大原图导致服务器 ISFR 算法处理失败（system error）
-        if resize_mode == 'isfr':
-            with Image.open(image_path) as orig:
-                img = _ensure_rgb(orig.copy())
-
-            # 计算等比缩小目标：不超过设备分辨率的 1.5 倍（若无设备信息则限制 3000px）
-            max_w = int((device_width or 2000) * 1.5)
-            max_h = int((device_height or 2000) * 1.5)
-            orig_size = img.size
-            if img.width > max_w or img.height > max_h:
-                img.thumbnail((max_w, max_h), Image.LANCZOS)
-
-            output = BytesIO()
-            img.save(output, format='JPEG', quality=92)
-            output.seek(0)
-            image_data = output.read()
-            logger.info(
-                f'[schedule:{schedule_id}] ISFR mode: {orig_size} → {img.size}, '
-                f'size={len(image_data)} bytes (no crop)'
-            )
-            client.publish_image(schedule['device_id'], image_data)
-            update_schedule_run_status(schedule_id, 'success')
-            logger.info(f'[schedule:{schedule_id}] DONE OK (isfr)')
-            return
-
         with Image.open(image_path) as orig:
             img = _ensure_rgb(orig.copy())
 
