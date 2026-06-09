@@ -1,11 +1,14 @@
 import os
 import random
 import logging
+import time
 from io import BytesIO
 from datetime import datetime
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from PIL import Image, ImageOps, ImageFilter
+from image_utils import IMAGE_EXTENSIONS, open_image, ensure_rgb, save_for_display
 
 logger = logging.getLogger(__name__)
 
@@ -13,8 +16,6 @@ _tz = 'Asia/Shanghai'
 scheduler = BackgroundScheduler(timezone=_tz)
 
 _images_dir = '/images'
-
-IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif'}
 
 
 def init_scheduler(app):
@@ -122,22 +123,8 @@ def _pick_random_image(schedule_id, folder, max_scan=2000):
     return chosen
 
 
-def _ensure_rgb(img):
-    """RGBA/其他模式 → RGB，白底合成透明通道。"""
-    if img.mode == 'RGBA':
-        bg = Image.new('RGB', img.size, (255, 255, 255))
-        bg.paste(img, mask=img.split()[3])
-        return bg
-
-    if img.mode != 'RGB':
-        return img.convert('RGB')
-
-    return img
-
-
 def _apply_blur_fill(img, device_width, device_height):
     """毛玻璃填充：以模糊放大的原图为背景，居中叠加适应缩放的原图。"""
-    from PIL import Image, ImageOps, ImageFilter
     # 背景：等比例放大裁切至目标尺寸，再做高斯模糊
     bg = ImageOps.fit(img.copy(), (device_width, device_height), Image.LANCZOS)
     bg = bg.filter(ImageFilter.GaussianBlur(radius=24))
@@ -152,7 +139,6 @@ def _apply_blur_fill(img, device_width, device_height):
 def execute_schedule(schedule_id):
     from database import get_schedule, get_account, update_schedule_run_status, update_account_token
     from api_client import InkJoyClient
-    from PIL import Image, ImageOps
 
     logger.info(f'[schedule:{schedule_id}] START execute at {datetime.now().isoformat()}')
     try:
@@ -172,7 +158,6 @@ def execute_schedule(schedule_id):
         client = InkJoyClient(account['server_url'])
 
         # 登录最多重试 3 次，每次间隔 5 秒，避免偶发网络超时导致任务失败
-        import time as _time
         login_data = None
         for _attempt in range(3):
             try:
@@ -183,7 +168,7 @@ def execute_schedule(schedule_id):
                     logger.warning(
                         f'[schedule:{schedule_id}] login attempt {_attempt + 1} failed: {_e}, retrying in 5s…'
                     )
-                    _time.sleep(5)
+                    time.sleep(5)
                 else:
                     raise
         update_account_token(account['id'], login_data['token'])
@@ -206,13 +191,13 @@ def execute_schedule(schedule_id):
         device_height = schedule.get('device_height')
         resize_mode = schedule.get('resize_mode', 'crop')
 
-        with Image.open(image_path) as orig:
-            img = _ensure_rgb(orig.copy())
+        img = ensure_rgb(open_image(image_path))
 
         if device_width and device_height:
             logger.info(
                 f'[schedule:{schedule_id}] resize {img.size} → {device_width}×{device_height} mode={resize_mode}'
             )
+
             if resize_mode == 'crop':
                 img = ImageOps.fit(img, (device_width, device_height), Image.LANCZOS)
             elif resize_mode == 'blur':
@@ -221,13 +206,13 @@ def execute_schedule(schedule_id):
                 img = img.resize((device_width, device_height), Image.LANCZOS)
 
         output = BytesIO()
-        img.save(output, format='JPEG', quality=95)
+        ext, mimetype = save_for_display(img, output)
         output.seek(0)
         image_data = output.read()
-        logger.info(f'[schedule:{schedule_id}] image encoded, size={len(image_data)} bytes')
+        logger.info(f'[schedule:{schedule_id}] image encoded as {ext}, size={len(image_data)} bytes')
 
         logger.info(f'[schedule:{schedule_id}] publishing to device {schedule["device_id"]}')
-        client.publish_image(schedule['device_id'], image_data)
+        client.publish_image(schedule['device_id'], image_data, filename=f'image.{ext}')
         update_schedule_run_status(schedule_id, 'success')
         logger.info(f'[schedule:{schedule_id}] DONE OK')
 

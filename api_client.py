@@ -37,8 +37,9 @@ class InkJoyClient:
             return data.get('data', [])
         raise Exception(data.get('msg', '获取设备列表失败'))
 
-    def publish_image(self, device_id, image_data, filename='image.jpg'):
-        files = {'file': (filename, image_data, 'image/jpeg')}
+    def publish_image(self, device_id, image_data, filename='image.png'):
+        mime = 'image/png' if filename.endswith('.png') else 'image/jpeg'
+        files = {'file': (filename, image_data, mime)}
         resp = self.session.post(
             f'{self.server_url}/api/v1/devices/{device_id}/publish',
             files=files,

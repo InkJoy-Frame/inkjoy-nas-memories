@@ -10,6 +10,7 @@ from flask import (
     redirect, url_for, jsonify, send_file, Response,
 )
 from PIL import Image
+from image_utils import IMAGE_EXTENSIONS, HEIC_EXTENSIONS, RAW_EXTENSIONS, open_image, ensure_rgb, save_for_display
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'inkjoy-manager-secret-change-this')
@@ -23,7 +24,6 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(mess
 
 IMAGES_DIR = app.config['IMAGES_DIR']
 IMAGES_DIR_NORM = os.path.normpath(IMAGES_DIR)
-IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif'}
 SYSTEM_EXCLUDED_DIRS = {
     '@eaDir', '@Recycle', '#recycle', '.recycle',
     '.thumbnails', '.synology_thumbnails', 'thumbs',
@@ -365,21 +365,14 @@ def api_upload():
         if not file:
             return jsonify({'success': False, 'error': '未收到图片文件'}), 400
 
-        img = Image.open(file.stream)
-        if img.mode not in ('RGB',):
-            if img.mode == 'RGBA':
-                bg = Image.new('RGB', img.size, (255, 255, 255))
-                bg.paste(img, mask=img.split()[3])
-                img = bg
-            else:
-                img = img.convert('RGB')
+        img = ensure_rgb(Image.open(file.stream))
 
         output = BytesIO()
-        img.save(output, format='JPEG', quality=95)
+        ext, mimetype = save_for_display(img, output)
         output.seek(0)
 
         client = InkJoyClient(session['server_url'], session['token'])
-        result = client.publish_image(device_id, output.read())
+        result = client.publish_image(device_id, output.read(), filename=f'image.{ext}')
         return jsonify({'success': True, 'result': result})
     except Exception as e:
         return _handle_api_error(e)
@@ -430,13 +423,27 @@ def api_image():
     if not os.path.isfile(safe_path):
         return Response('文件不存在', status=404)
 
+    ext = os.path.splitext(safe_path)[1].lower()
+    needs_transcode = ext in HEIC_EXTENSIONS or ext in RAW_EXTENSIONS
+
     thumb = request.args.get('thumb', 'false').lower() == 'true'
+
     if thumb:
         try:
-            img = Image.open(safe_path)
+            img = open_image(safe_path) if needs_transcode else Image.open(safe_path)
             img.thumbnail((160, 160))
             output = BytesIO()
             img.save(output, format='JPEG', quality=75)
+            output.seek(0)
+            return send_file(output, mimetype='image/jpeg')
+        except Exception:
+            pass
+
+    if needs_transcode:
+        try:
+            img = ensure_rgb(open_image(safe_path))
+            output = BytesIO()
+            img.save(output, format='JPEG', quality=90)
             output.seek(0)
             return send_file(output, mimetype='image/jpeg')
         except Exception:

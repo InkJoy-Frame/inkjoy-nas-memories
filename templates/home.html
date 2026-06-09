@@ -141,6 +141,11 @@ function inkModalShow(title, bodyHtml, actions) {
   document.getElementById('inkModalTitle').textContent = title;
   document.getElementById('inkModalBody').innerHTML = bodyHtml;
 
+  var box = document.querySelector('.ink-modal-box');
+  Array.from(box.children).forEach(function(el) {
+    if (!el.classList.contains('ink-modal-title') && !el.classList.contains('ink-modal-body') && !el.classList.contains('ink-modal-footer')) el.remove();
+  });
+
   const footer = document.getElementById('inkModalFooter');
   footer.innerHTML = '';
   actions.forEach(a => {
@@ -873,24 +878,36 @@ async function openQuickPush() {
     + '</div>'
     + '<div id="qpContent" style="min-height:200px;max-height:350px;overflow-y:auto;border:1px solid #eee;border-radius:8px;padding:8px">'
     +   '<div style="text-align:center;color:#999;padding:40px">' + (getLang() === 'zh' ? '选择上方的相册或浏览文件夹' : 'Select an album above or browse folders') + '</div>'
-    + '</div>'
-    + '<div id="qpPushArea" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #eee">'
-    +   '<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">'
-    +     '<img id="qpPreview" src="" style="width:60px;height:60px;object-fit:cover;border-radius:6px;background:#eee">'
-    +     '<div id="qpPhotoName" style="font-size:13px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>'
-    +   '</div>'
-    +   '<div style="font-size:12px;font-weight:600;color:#475569;margin-bottom:6px">' + t('bind.device') + '</div>'
-    +   '<div class="device-pick-grid" id="qpDevices"></div>'
-    +   '<button class="btn-sm-primary" style="width:100%;margin-top:10px;padding:10px" id="qpPushBtn" onclick="qpDoPush()" disabled>'
-    +     (getLang() === 'zh' ? '推送' : 'Push')
-    +   '</button>'
     + '</div>';
+
+  var pushLabel = getLang() === 'zh' ? '推送' : 'Push';
 
   inkModalShow(t('home.push.title'), bodyHtml, [
     { label: t('albums.modal.cancel'), cls: 'ink-btn-secondary', onClick: inkModalCancel },
+    { label: pushLabel, cls: 'ink-btn-primary', onClick: function() { qpDoPush(); } },
   ]);
 
-  document.querySelector('.ink-modal-box').style.maxWidth = '560px';
+  var pushBtn = document.querySelector('#inkModalFooter .ink-btn-primary');
+  pushBtn.id = 'qpPushBtn';
+  pushBtn.disabled = true;
+  pushBtn.style.opacity = '.4';
+
+  var pushArea = document.createElement('div');
+  pushArea.id = 'qpPushArea';
+  pushArea.style.cssText = 'display:none;flex-shrink:0;padding:0 2rem 1rem';
+  pushArea.innerHTML = ''
+    + '<div style="border-top:1px solid #eee;padding-top:12px">'
+    +   '<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">'
+    +     '<img id="qpPreview" src="" style="width:60px;height:60px;object-fit:cover;border-radius:6px;background:#eee">'
+    +     '<div id="qpPhotoName" style="font-size:13px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>'
+    +   '</div>'
+    +   '<div style="font-size:14px;font-weight:700;color:#1e293b;margin-bottom:10px">' + t('bind.device') + '</div>'
+    +   '<div class="qp-device-grid" id="qpDevices"></div>'
+    + '</div>';
+
+  var modalBox = document.querySelector('.ink-modal-box');
+  modalBox.insertBefore(pushArea, document.getElementById('inkModalFooter'));
+  modalBox.style.maxWidth = '560px';
 }
 
 async function qpLoadAlbum(albumId) {
@@ -973,15 +990,25 @@ async function qpSelectPhoto(path, name) {
   document.getElementById('qpPhotoName').textContent = name;
   document.getElementById('qpPushArea').style.display = '';
 
+  var pushBtn = document.getElementById('qpPushBtn');
+  pushBtn.disabled = true;
+  pushBtn.style.opacity = '.4';
+
   devicesCache = await getDevices();
   var grid = document.getElementById('qpDevices');
   grid.innerHTML = devicesCache.map(function(d) {
-    return '<div class="device-pick-item" data-did="' + d.deviceId + '" onclick="qpToggleDevice(this,\'' + d.deviceId + '\')">'
-      + (d.status === 'ONLINE' ? '🟢' : '⚫') + ' ' + esc(d.deviceName || d.deviceId)
+    var isOnline = d.status === 'ONLINE' || d.status === 1;
+    var thumb = d.lastPlayThumbnailUrl;
+    var thumbInner = thumb
+      ? '<img src="' + esc(thumb) + '" alt="">'
+      : '<span style="font-size:18px;color:#bbb">🖼</span>';
+
+    return '<div class="qp-device-card" data-did="' + d.deviceId + '" onclick="qpToggleDevice(this,\'' + esc(d.deviceId) + '\')">'
+      + '<div class="qp-device-dot ' + (isOnline ? 'online' : '') + '"></div>'
+      + '<div class="qp-device-thumb">' + thumbInner + '</div>'
+      + '<div class="qp-device-name">' + esc(d.deviceName || d.deviceId) + '</div>'
       + '</div>';
   }).join('');
-
-  document.getElementById('qpPushBtn').disabled = true;
 }
 
 function qpToggleDevice(el, deviceId) {
@@ -994,7 +1021,9 @@ function qpToggleDevice(el, deviceId) {
     qpPickedDevices.forEach(function(d) { if (d.deviceId === deviceId) qpPickedDevices.delete(d); });
   }
 
-  document.getElementById('qpPushBtn').disabled = qpPickedDevices.size === 0;
+  var pushBtn = document.getElementById('qpPushBtn');
+  pushBtn.disabled = qpPickedDevices.size === 0;
+  pushBtn.style.opacity = qpPickedDevices.size === 0 ? '.4' : '';
 }
 
 async function qpDoPush() {
@@ -1003,6 +1032,7 @@ async function qpDoPush() {
   var btn = document.getElementById('qpPushBtn');
   var origText = btn.textContent;
   btn.disabled = true;
+  btn.style.opacity = '.4';
   btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
 
   var imageResp = await fetch('/api/image?path=' + encodeURIComponent(qpSelectedPath));
@@ -1039,6 +1069,7 @@ async function qpDoPush() {
   } else {
     btn.textContent = origText;
     btn.disabled = false;
+    btn.style.opacity = '';
     btn.style.background = '';
   }
 }
