@@ -2,8 +2,7 @@ version: '3.8'
 
 services:
   inkjoy-manager:
-    image: inkjoy-manager:latest
-    build: .
+    image: ghcr.io/inkjoy-frame/inkjoy-nas-memories:latest
     container_name: inkjoy-manager
     ports:
       - "8080:8080"
