@@ -53,6 +53,33 @@ Open `http://<nas-ip>:8080`, log in with your InkJoy account.
 | `linux/amd64` (x86_64) | Synology, QNAP, UGREEN DXP series, PC, server |
 | `linux/arm64` (aarch64) | UGREEN DH series, Raspberry Pi, ARM NAS |
 
+### Offline Install (no internet on NAS)
+
+If your NAS cannot access the internet, build the image locally and transfer it:
+
+```powershell
+# On your PC (with Docker Desktop running)
+# x86_64 NAS (Synology, QNAP, UGREEN DXP, etc.)
+.\build-export-x86.ps1
+
+# ARM64 NAS (UGREEN DH, Raspberry Pi, etc.)
+.\build-export-arm.ps1
+```
+
+Copy the exported `.tar` file to your NAS, then:
+
+```bash
+docker load -i inkjoy-manager-x86.tar   # or inkjoy-manager-arm64.tar
+docker run -d \
+  --name inkjoy-manager \
+  -p 8080:8080 \
+  -v /path/to/your/photos:/images \
+  -v /path/to/data:/data \
+  -e SECRET_KEY=your-secret-key \
+  -e TZ=Asia/Shanghai \
+  inkjoy-manager:latest
+```
+
 ### Local Development (no Docker)
 
 ```powershell
