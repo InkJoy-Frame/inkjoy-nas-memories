@@ -365,20 +365,27 @@ def api_upload():
         if not file:
             return jsonify({'success': False, 'error': '未收到图片文件'}), 400
 
-        img = ensure_rgb(Image.open(file.stream))
+        pre_processed = request.form.get('pre_processed') == '1'
 
-        dw = request.form.get('device_width', type=int)
-        dh = request.form.get('device_height', type=int)
+        if pre_processed:
+            raw = file.read()
+            ext = 'png' if file.content_type == 'image/png' else 'jpg'
+        else:
+            img = ensure_rgb(Image.open(file.stream))
 
-        if dw and dh:
-            img = ImageOps.fit(img, (dw, dh), Image.LANCZOS)
+            dw = request.form.get('device_width', type=int)
+            dh = request.form.get('device_height', type=int)
 
-        output = BytesIO()
-        ext, _ = save_for_display(img, output)
-        output.seek(0)
+            if dw and dh:
+                img = ImageOps.fit(img, (dw, dh), Image.LANCZOS)
+
+            output = BytesIO()
+            ext, _ = save_for_display(img, output)
+            output.seek(0)
+            raw = output.read()
 
         client = InkJoyClient(session['server_url'], session['token'])
-        result = client.publish_image(device_id, output.read(), filename=f'image.{ext}')
+        result = client.publish_image(device_id, raw, filename=f'image.{ext}')
         return jsonify({'success': True, 'result': result})
     except Exception as e:
         return _handle_api_error(e)

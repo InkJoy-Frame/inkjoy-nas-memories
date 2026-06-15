@@ -1,6 +1,10 @@
 {% extends 'base.html' %}
 {% block title %}InkJoy NAS{% endblock %}
 
+{% block head %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
+{% endblock %}
+
 {% block content %}
 <div id="mainView">
 <!-- 自动播放列表 -->
@@ -17,7 +21,7 @@
   </div>
 </div>
 
-<!-- 快速推送区块 -->
+<!-- 快速推送（内联） -->
 <div class="content-card">
   <div class="content-card-header">
     <div>
@@ -25,8 +29,47 @@
       <div class="content-card-subtitle" data-i18n="home.push.subtitle">Push a single photo to your frame — no schedule needed.</div>
     </div>
   </div>
-  <div class="content-card-body">
-    <div class="quick-push-entry" onclick="openQuickPush()" data-i18n="home.push.browse">Browse & Push</div>
+  <div class="content-card-body" style="padding:1.25rem">
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px" id="qpSourcePills"></div>
+    <div id="qpPhotoGrid" style="min-height:80px;max-height:300px;overflow-y:auto;border:1px solid #eee;border-radius:8px;padding:8px">
+      <div style="text-align:center;color:#999;padding:30px" data-i18n="qp.source.hint">Select an album above or browse folders</div>
+    </div>
+  </div>
+</div>
+
+<!-- 快速推送配置区（选中照片后显示） -->
+<div id="qpConfigSection" style="display:none">
+  <div id="qpSelectedPhotoBar" class="qp-selected-photo">
+    <img id="qpSelectedThumb" src="" alt="">
+    <div class="qp-photo-name" id="qpPhotoName"></div>
+    <span class="qp-photo-change" onclick="qpChangePhoto()" data-i18n="qp.reselect">Re-select</span>
+  </div>
+
+  <div class="content-card">
+    <div class="content-card-body" style="padding:1.25rem">
+      <div class="wizard-step-label" data-i18n="bind.device">Target Frame</div>
+      <div style="color:#888;font-size:13px;margin-bottom:10px" data-i18n="wizard.step.devices.hint">Select one or more frames to push photos to.</div>
+      <div class="device-card-grid" id="qpDeviceGrid"></div>
+    </div>
+  </div>
+
+  <div id="qpPreviewCard" class="content-card" style="display:none">
+    <div class="content-card-body" style="padding:1.25rem">
+      <div class="qp-zoom-hint" data-i18n="qp.zoom.hint">💡 Scroll to zoom, drag to position</div>
+      <div id="qpCropperClip">
+        <div id="qpFrameOverlay"></div>
+        <div class="qp-cropper-wrapper">
+          <img id="qpCropImage" src="" alt="">
+        </div>
+      </div>
+      <div class="qp-toolbar">
+        <button class="btn-sm-outline" onclick="qpToggleRotation()">🔄 <span data-i18n="qp.rotate">Rotate</span></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="qp-push-footer">
+    <button class="ink-btn ink-btn-primary" id="qpPushBtn" onclick="qpDoPush()" disabled style="opacity:.4" data-i18n="qp.push">Push to Frame</button>
   </div>
 </div>
 
@@ -114,6 +157,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
 <script>
 // ── 全局状态 ─────────────────────────────────────────────────────────────────
 let albumsData = [];
@@ -854,78 +898,249 @@ async function deleteAlbum(albumId, albumName) {
   else alert(resp.error);
 }
 
-// ── 快速推送 ────────────────────────────────────────────────────────────────
+// ── 快速推送（内联 + Cropper.js 预览） ──────────────────────────────────────
 
 let qpSelectedPath = null;
 let qpPickedDevices = new Set();
 let qpBrowsePath = '';
 let devicesCache = [];
 
-async function openQuickPush() {
-  qpSelectedPath = null;
-  qpPickedDevices = new Set();
-  qpBrowsePath = '';
+let _qpCropper = null;
+let _qpImgEl = null;
+let _qpBlurDataUrl = null;
+let _qpIsAdjusting = false;
+let _qpSettleTimer = null;
+let _qpCropListener = null;
 
+// ── Cropper 核心函数（移植自 webtool ImageCropper.js） ───────────────────
+
+function qpDrawCover(ctx, img, W, H, rotate) {
+  ctx.save();
+  ctx.translate(W / 2, H / 2);
+  ctx.rotate(rotate * Math.PI / 180);
+
+  var flip = rotate === 90;
+  var tW = flip ? H : W, tH = flip ? W : H;
+  var ar = img.naturalWidth / img.naturalHeight;
+  var arT = tW / tH;
+  var dw, dh;
+
+  if (ar > arT) { dh = tH; dw = tH * ar; }
+  else { dw = tW; dh = tW / ar; }
+
+  ctx.drawImage(img, -dw / 2, -dh / 2, dw, dh);
+  ctx.restore();
+}
+
+function qpGenBlurUrl(img, rotate) {
+  var flip = rotate === 90;
+  var bW = flip ? img.naturalHeight : img.naturalWidth;
+  var bH = flip ? img.naturalWidth : img.naturalHeight;
+
+  var W = 240, H = Math.max(1, Math.round(W * bH / bW));
+  var c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  var ctx = c.getContext('2d');
+  ctx.filter = 'blur(8px) saturate(1.08) brightness(0.92)';
+  qpDrawCover(ctx, img, W, H, rotate);
+  return c.toDataURL('image/jpeg', 0.7);
+}
+
+function qpEnforceConstraints() {
+  if (_qpIsAdjusting || !_qpCropper) return;
+
+  var cd = _qpCropper.getCanvasData();
+  var cbd = _qpCropper.getCropBoxData();
+  var nW = cd.width, nH = cd.height;
+
+  if (cd.width < cbd.width && cd.height < cbd.height) {
+    var k = Math.min(cbd.width / cd.width, cbd.height / cd.height);
+    nW = cd.width * k; nH = cd.height * k;
+  }
+
+  var r = Math.min(nW / cbd.width, nH / cbd.height);
+  if (r > 0.97 && r < 1.03 && Math.abs(r - 1) > 1e-3) {
+    var k2 = 1 / r; nW *= k2; nH *= k2;
+  }
+
+  var nL = cd.left, nT = cd.top;
+
+  if (nW < cbd.width) { nL = cbd.left + (cbd.width - nW) / 2; }
+  else { nL = Math.max(cbd.left + cbd.width - nW, Math.min(cbd.left, nL)); }
+
+  if (nH < cbd.height) { nT = cbd.top + (cbd.height - nH) / 2; }
+  else { nT = Math.max(cbd.top + cbd.height - nH, Math.min(cbd.top, nT)); }
+
+  if (Math.abs(nW - cd.width) > 0.5 || Math.abs(nH - cd.height) > 0.5 ||
+      Math.abs(nL - cd.left) > 0.5 || Math.abs(nT - cd.top) > 0.5) {
+    _qpIsAdjusting = true;
+    _qpCropper.setCanvasData({ left: nL, top: nT, width: nW, height: nH });
+    _qpIsAdjusting = false;
+  }
+}
+
+function qpApplyBlurBg() {
+  var vb = document.querySelector('#qpCropperClip .cropper-view-box');
+  if (!vb || !_qpBlurDataUrl) return;
+  vb.style.backgroundImage = 'url("' + _qpBlurDataUrl + '")';
+  vb.style.backgroundSize = 'cover';
+  vb.style.backgroundPosition = 'center';
+}
+
+function qpUpdateOverlay() {
+  var cropBox = document.querySelector('#qpCropperClip .cropper-crop-box');
+  var clip = document.getElementById('qpCropperClip');
+  var overlay = document.getElementById('qpFrameOverlay');
+  if (!cropBox || !clip || !overlay) return;
+
+  var cr = cropBox.getBoundingClientRect();
+  var pr = clip.getBoundingClientRect();
+
+  overlay.style.display = 'block';
+  overlay.style.left = (cr.left - pr.left) + 'px';
+  overlay.style.top = (cr.top - pr.top) + 'px';
+  overlay.style.width = cr.width + 'px';
+  overlay.style.height = cr.height + 'px';
+
+  overlay.style.opacity = '0.45';
+  if (_qpSettleTimer) clearTimeout(_qpSettleTimer);
+  _qpSettleTimer = setTimeout(function() { overlay.style.opacity = '1'; }, 500);
+}
+
+function qpInitCropper(imgEl, dev) {
+  qpDestroyCropper();
+  _qpImgEl = imgEl;
+
+  var size = orientedSize(dev);
+  var ratio = size ? size.w / size.h : 3 / 4;
+
+  var create = function() {
+    _qpBlurDataUrl = qpGenBlurUrl(imgEl, 0);
+
+    _qpCropper = new Cropper(imgEl, {
+      aspectRatio: ratio,
+      viewMode: 0,
+      dragMode: 'move',
+      autoCropArea: 1,
+      responsive: true,
+      restore: false,
+      guides: true,
+      center: true,
+      highlight: false,
+      cropBoxMovable: false,
+      cropBoxResizable: false,
+      ready: function() {
+        qpApplyBlurBg();
+        _qpCropListener = function() {
+          qpEnforceConstraints();
+          qpUpdateOverlay();
+        };
+        imgEl.addEventListener('crop', _qpCropListener);
+        qpUpdateOverlay();
+      },
+    });
+  };
+
+  if (imgEl.complete && imgEl.naturalWidth > 0) create();
+  else imgEl.onload = create;
+}
+
+function qpDestroyCropper() {
+  var imgEl = document.getElementById('qpCropImage');
+
+  if (_qpCropListener && imgEl) {
+    imgEl.removeEventListener('crop', _qpCropListener);
+    _qpCropListener = null;
+  }
+
+  if (_qpCropper) { _qpCropper.destroy(); _qpCropper = null; }
+  _qpImgEl = null;
+  _qpBlurDataUrl = null;
+
+  var overlay = document.getElementById('qpFrameOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function qpToggleRotation() {
+  if (!_qpCropper || !_qpImgEl) return;
+  var cur = _qpCropper.getData().rotate || 0;
+  var next = cur === 0 ? 90 : 0;
+  _qpCropper.rotateTo(next);
+  _qpBlurDataUrl = qpGenBlurUrl(_qpImgEl, next);
+  qpApplyBlurBg();
+}
+
+function qpGetOutputCanvas(dev) {
+  if (!_qpCropper || !_qpImgEl) return null;
+  var size = orientedSize(dev) || { w: 1200, h: 1600 };
+  var out = document.createElement('canvas');
+  out.width = size.w; out.height = size.h;
+  var ctx = out.getContext('2d');
+  var rotate = _qpCropper.getData().rotate || 0;
+
+  ctx.save();
+  ctx.filter = 'blur(40px) saturate(1.08) brightness(0.92)';
+  qpDrawCover(ctx, _qpImgEl, size.w, size.h, rotate);
+  ctx.restore();
+
+  var sharp = _qpCropper.getCroppedCanvas({
+    width: size.w, height: size.h,
+    fillColor: 'rgba(0,0,0,0)',
+    imageSmoothingEnabled: true,
+    imageSmoothingQuality: 'high',
+  });
+  ctx.drawImage(sharp, 0, 0);
+  return out;
+}
+
+function qpToDeviceCanvas(canvas, dev) {
+  if (!dev || dev.orientation !== 90) return canvas;
+  var out = document.createElement('canvas');
+  out.width = canvas.height; out.height = canvas.width;
+  var ctx = out.getContext('2d');
+  ctx.translate(out.width, 0);
+  ctx.rotate(Math.PI / 2);
+  ctx.drawImage(canvas, 0, 0);
+  return out;
+}
+
+// ── 快速推送内联逻辑 ─────────────────────────────────────────────────────
+
+function qpInitPills() {
   var pills = albumsData.map(function(a) {
     return '<span class="device-pick-item" onclick="qpLoadAlbum(' + a.id + ')" data-album="' + a.id + '">' + esc(albumSourceLabel(a)) + '</span>';
   }).join('');
+  pills += '<span class="device-pick-item" onclick="qpBrowseMode()" data-browse="1">' + t('qp.source.browse') + '</span>';
+  document.getElementById('qpSourcePills').innerHTML = pills;
+}
 
-  var browsePill = '<span class="device-pick-item" onclick="qpBrowseMode()" data-browse="1">' + (getLang() === 'zh' ? '📂 浏览文件夹' : '📂 Browse Folders') + '</span>';
+function qpReset() {
+  qpSelectedPath = null;
+  qpPickedDevices = new Set();
+  qpDestroyCropper();
+  document.getElementById('qpConfigSection').style.display = 'none';
+  document.getElementById('qpPreviewCard').style.display = 'none';
 
-  var bodyHtml = ''
-    + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">'
-    +   pills + browsePill
-    + '</div>'
-    + '<div id="qpContent" style="min-height:200px;max-height:350px;overflow-y:auto;border:1px solid #eee;border-radius:8px;padding:8px">'
-    +   '<div style="text-align:center;color:#999;padding:40px">' + (getLang() === 'zh' ? '选择上方的相册或浏览文件夹' : 'Select an album above or browse folders') + '</div>'
-    + '</div>';
-
-  var pushLabel = getLang() === 'zh' ? '推送' : 'Push';
-
-  inkModalShow(t('home.push.title'), bodyHtml, [
-    { label: t('albums.modal.cancel'), cls: 'ink-btn-secondary', onClick: inkModalCancel },
-    { label: pushLabel, cls: 'ink-btn-primary', onClick: function() { qpDoPush(); } },
-  ]);
-
-  var pushBtn = document.querySelector('#inkModalFooter .ink-btn-primary');
-  pushBtn.id = 'qpPushBtn';
-  pushBtn.disabled = true;
-  pushBtn.style.opacity = '.4';
-
-  var pushArea = document.createElement('div');
-  pushArea.id = 'qpPushArea';
-  pushArea.style.cssText = 'display:none;flex-shrink:0;padding:0 2rem 1rem';
-  pushArea.innerHTML = ''
-    + '<div style="border-top:1px solid #eee;padding-top:12px">'
-    +   '<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">'
-    +     '<img id="qpPreview" src="" style="width:60px;height:60px;object-fit:cover;border-radius:6px;background:#eee">'
-    +     '<div id="qpPhotoName" style="font-size:13px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>'
-    +   '</div>'
-    +   '<div style="font-size:14px;font-weight:700;color:#1e293b;margin-bottom:10px">' + t('bind.device') + '</div>'
-    +   '<div class="qp-device-grid" id="qpDevices"></div>'
-    + '</div>';
-
-  var modalBox = document.querySelector('.ink-modal-box');
-  modalBox.insertBefore(pushArea, document.getElementById('inkModalFooter'));
-  modalBox.style.maxWidth = '560px';
+  var pushBtn = document.getElementById('qpPushBtn');
+  if (pushBtn) { pushBtn.disabled = true; pushBtn.style.opacity = '.4'; pushBtn.textContent = t('qp.push'); pushBtn.style.background = ''; }
 }
 
 async function qpLoadAlbum(albumId) {
-  document.querySelectorAll('#inkModalBody .device-pick-item').forEach(function(el) { el.classList.remove('picked'); });
-  var active = document.querySelector('#inkModalBody .device-pick-item[data-album="' + albumId + '"]');
-  if (active) active.classList.add('picked');
+  document.querySelectorAll('#qpSourcePills .device-pick-item').forEach(function(el) { el.classList.remove('picked'); });
+  var pill = document.querySelector('#qpSourcePills .device-pick-item[data-album="' + albumId + '"]');
+  if (pill) pill.classList.add('picked');
 
-  var content = document.getElementById('qpContent');
-  content.innerHTML = '<div style="text-align:center;padding:20px"><div class="spinner-border spinner-border-sm"></div></div>';
+  var grid = document.getElementById('qpPhotoGrid');
+  grid.innerHTML = '<div style="text-align:center;padding:20px"><div class="spinner-border spinner-border-sm"></div></div>';
 
   var resp = await fetch('/api/nas-albums/' + albumId + '/photos').then(function(r) { return r.json(); });
 
   if (!resp.success || !resp.photos || !resp.photos.length) {
-    content.innerHTML = '<div style="text-align:center;color:#999;padding:40px">' + t('albums.photos.empty') + '</div>';
+    grid.innerHTML = '<div style="text-align:center;color:#999;padding:40px">' + t('albums.photos.empty') + '</div>';
     return;
   }
 
-  content.innerHTML = '<div class="photo-grid">' + resp.photos.map(function(p) {
+  grid.innerHTML = '<div class="photo-grid">' + resp.photos.map(function(p) {
     return '<div class="photo-item" onclick="qpSelectPhoto(\'' + esc(p.path) + '\',\'' + esc(p.name) + '\')">'
       + '<img src="/api/image?path=' + encodeURIComponent(p.path) + '&thumb=true" alt="' + esc(p.name) + '" loading="lazy">'
       + '</div>';
@@ -933,18 +1148,17 @@ async function qpLoadAlbum(albumId) {
 }
 
 async function qpBrowseMode() {
-  document.querySelectorAll('#inkModalBody .device-pick-item').forEach(function(el) { el.classList.remove('picked'); });
-  var active = document.querySelector('#inkModalBody .device-pick-item[data-browse]');
+  document.querySelectorAll('#qpSourcePills .device-pick-item').forEach(function(el) { el.classList.remove('picked'); });
+  var active = document.querySelector('#qpSourcePills .device-pick-item[data-browse]');
   if (active) active.classList.add('picked');
-
   qpBrowsePath = '';
   await qpLoadFolder('');
 }
 
 async function qpLoadFolder(path) {
   qpBrowsePath = path;
-  var content = document.getElementById('qpContent');
-  content.innerHTML = '<div style="text-align:center;padding:20px"><div class="spinner-border spinner-border-sm"></div></div>';
+  var grid = document.getElementById('qpPhotoGrid');
+  grid.innerHTML = '<div style="text-align:center;padding:20px"><div class="spinner-border spinner-border-sm"></div></div>';
 
   var resp = await fetch('/api/browse?path=' + encodeURIComponent(path)).then(function(r) { return r.json(); });
   if (!resp.success) return;
@@ -979,96 +1193,226 @@ async function qpLoadFolder(path) {
     html += '<div style="text-align:center;color:#999;padding:20px">' + (getLang() === 'zh' ? '空文件夹' : 'Empty folder') + '</div>';
   }
 
-  content.innerHTML = html;
+  grid.innerHTML = html;
 }
 
 async function qpSelectPhoto(path, name) {
   qpSelectedPath = path;
   qpPickedDevices = new Set();
+  qpDestroyCropper();
 
-  document.getElementById('qpPreview').src = '/api/image?path=' + encodeURIComponent(path) + '&thumb=true';
+  document.getElementById('qpSelectedThumb').src = '/api/image?path=' + encodeURIComponent(path) + '&thumb=true';
   document.getElementById('qpPhotoName').textContent = name;
-  document.getElementById('qpPushArea').style.display = '';
+  document.getElementById('qpConfigSection').style.display = '';
+  document.getElementById('qpPreviewCard').style.display = 'none';
 
   var pushBtn = document.getElementById('qpPushBtn');
   pushBtn.disabled = true;
   pushBtn.style.opacity = '.4';
+  pushBtn.textContent = t('qp.push');
+  pushBtn.style.background = '';
 
   devicesCache = await getDevices();
-  var grid = document.getElementById('qpDevices');
+  var grid = document.getElementById('qpDeviceGrid');
+
+  if (!devicesCache.length) {
+    grid.innerHTML = '<div style="color:#999;font-size:13px">' + t('qp.noDevice') + '</div>';
+    return;
+  }
+
   grid.innerHTML = devicesCache.map(function(d) {
-    return '<div class="device-card qp-device-card" data-did="' + d.deviceId + '" onclick="qpToggleDevice(this,\'' + esc(d.deviceId) + '\')">'
-      + deviceCardHtml(d)
-      + '</div>';
+    return '<div class="device-card" data-device-id="' + esc(d.deviceId) + '" onclick="qpToggleDevice(this,\'' + esc(d.deviceId) + '\')">'
+      + deviceCardHtml(d) + '</div>';
   }).join('');
+
+  setTimeout(function() {
+    var section = document.getElementById('qpConfigSection');
+    if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 100);
+}
+
+function qpChangePhoto() {
+  qpReset();
+  document.getElementById('qpPhotoGrid').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function qpCropSig(dev) {
+  var size = orientedSize(dev);
+  return size ? size.w + 'x' + size.h : 'unknown';
+}
+
+function qpUpdateDeviceCompat() {
+  var firstDev = qpGetFirstDevice();
+  var targetSig = firstDev ? qpCropSig(firstDev) : null;
+
+  document.querySelectorAll('#qpDeviceGrid .device-card').forEach(function(card) {
+    var did = card.dataset.deviceId;
+    var dev = devicesCache.find(function(d) { return d.deviceId === did; });
+    if (!dev) return;
+
+    var incompat = !!targetSig && qpCropSig(dev) !== targetSig && !card.classList.contains('selected');
+    card.classList.toggle('incompatible', incompat);
+
+    var tag = card.querySelector('.incompatible-tag');
+    if (incompat && !tag) {
+      tag = document.createElement('div');
+      tag.className = 'incompatible-tag';
+      tag.textContent = t('qp.incompatible');
+      card.appendChild(tag);
+    } else if (!incompat && tag) {
+      tag.remove();
+    }
+  });
+}
+
+function qpSelectGroup(sig) {
+  document.querySelectorAll('#qpDeviceGrid .device-card').forEach(function(card) {
+    var did = card.dataset.deviceId;
+    var dev = devicesCache.find(function(d) { return d.deviceId === did; });
+    if (!dev) return;
+
+    if (qpCropSig(dev) === sig) {
+      card.classList.add('selected');
+      qpPickedDevices.add(dev);
+    }
+  });
+}
+
+function qpClearSelection() {
+  qpPickedDevices = new Set();
+  document.querySelectorAll('#qpDeviceGrid .device-card.selected').forEach(function(c) { c.classList.remove('selected'); });
 }
 
 function qpToggleDevice(el, deviceId) {
-  el.classList.toggle('picked');
+  var dev = devicesCache.find(function(d) { return d.deviceId === deviceId; });
+  if (!dev) return;
 
-  if (el.classList.contains('picked')) {
-    var dev = devicesCache.find(function(d) { return d.deviceId === deviceId; });
-    if (dev) qpPickedDevices.add(dev);
+  var sig = qpCropSig(dev);
+
+  if (el.classList.contains('selected')) {
+    el.classList.remove('selected');
+    qpPickedDevices.delete(dev);
+  } else if (el.classList.contains('incompatible')) {
+    qpClearSelection();
+    qpSelectGroup(sig);
   } else {
-    qpPickedDevices.forEach(function(d) { if (d.deviceId === deviceId) qpPickedDevices.delete(d); });
+    qpSelectGroup(sig);
   }
+
+  qpUpdateDeviceCompat();
 
   var pushBtn = document.getElementById('qpPushBtn');
   pushBtn.disabled = qpPickedDevices.size === 0;
   pushBtn.style.opacity = qpPickedDevices.size === 0 ? '.4' : '';
+
+  qpMaybeInitPreview();
+}
+
+function qpGetFirstDevice() {
+  var first = null;
+  qpPickedDevices.forEach(function(d) { if (!first) first = d; });
+  return first;
+}
+
+function qpMaybeInitPreview() {
+  var dev = qpGetFirstDevice();
+
+  if (!dev || !qpSelectedPath) {
+    document.getElementById('qpPreviewCard').style.display = 'none';
+    qpDestroyCropper();
+    return;
+  }
+
+  var previewCard = document.getElementById('qpPreviewCard');
+  var wasHidden = previewCard.style.display === 'none';
+  previewCard.style.display = '';
+
+  var imgEl = document.getElementById('qpCropImage');
+  var newSrc = '/api/image?path=' + encodeURIComponent(qpSelectedPath);
+  var sameImage = imgEl.src && imgEl.src.indexOf(encodeURIComponent(qpSelectedPath)) !== -1;
+
+  var curRatio = _qpCropper ? _qpCropper.options.aspectRatio : null;
+  var size = orientedSize(dev);
+  var newRatio = size ? size.w / size.h : 3 / 4;
+  var ratioChanged = curRatio !== null && Math.abs(curRatio - newRatio) > 0.01;
+
+  if (sameImage && _qpCropper && !ratioChanged) return;
+
+  if (sameImage && _qpCropper && ratioChanged) {
+    qpDestroyCropper();
+    qpInitCropper(imgEl, dev);
+    return;
+  }
+
+  imgEl.src = newSrc;
+  qpInitCropper(imgEl, dev);
+
+  if (wasHidden) {
+    setTimeout(function() {
+      previewCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 200);
+  }
 }
 
 async function qpDoPush() {
-  if (!qpSelectedPath || qpPickedDevices.size === 0) return;
+  if (!qpSelectedPath || qpPickedDevices.size === 0 || !_qpCropper) return;
 
   var btn = document.getElementById('qpPushBtn');
-  var origText = btn.textContent;
   btn.disabled = true;
   btn.style.opacity = '.4';
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
 
-  var imageResp = await fetch('/api/image?path=' + encodeURIComponent(qpSelectedPath));
-  var imageBlob = await imageResp.blob();
+  var devArr = Array.from(qpPickedDevices);
 
-  var allOk = true;
-  var devArr = [];
-  qpPickedDevices.forEach(function(d) { devArr.push(d); });
+  var failed = [];
 
   for (var i = 0; i < devArr.length; i++) {
     var dev = devArr[i];
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> ' + t('qp.push.sending', {n: i + 1, total: devArr.length});
+
+    var canvas = qpGetOutputCanvas(dev);
+    if (!canvas) { failed.push(dev.deviceName || dev.deviceId); continue; }
+
+    var devCanvas = qpToDeviceCanvas(canvas, dev);
+
+    var size = orientedSize(dev) || { w: 480, h: 800 };
+    var usePng = size.w * size.h * 2.5 < 5 * 1024 * 1024;
+
+    var blob;
+    if (usePng) {
+      blob = await new Promise(function(r) { devCanvas.toBlob(r, 'image/png'); });
+    } else {
+      blob = await new Promise(function(r) { devCanvas.toBlob(r, 'image/jpeg', 0.92); });
+    }
+
     var form = new FormData();
     form.append('device_id', dev.deviceId);
-    form.append('file', imageBlob, 'push.jpg');
-    if (dev.resolution && dev.resolution.width) form.append('device_width', dev.resolution.width);
-    if (dev.resolution && dev.resolution.height) form.append('device_height', dev.resolution.height);
+    form.append('file', blob, usePng ? 'push.png' : 'push.jpg');
+    form.append('pre_processed', '1');
 
     try {
       var resp = await fetch('/api/upload', {method: 'POST', body: form});
       var data = await resp.json();
-
-      if (!data.success) {
-        alert((dev.deviceName || dev.deviceId) + ': ' + data.error);
-        allOk = false;
-      }
+      if (!data.success) failed.push(dev.deviceName || dev.deviceId);
     } catch(e) {
-      alert((dev.deviceName || dev.deviceId) + ': ' + e.message);
-      allOk = false;
+      failed.push(dev.deviceName || dev.deviceId);
     }
   }
 
-  if (allOk) {
-    btn.innerHTML = '✓';
+  if (failed.length === 0) {
+    btn.innerHTML = '✓ ' + t('qp.push.success');
     btn.style.background = '#4caf50';
-    setTimeout(function() { inkModalHide(); }, 1000);
+    setTimeout(function() { qpReset(); }, 2000);
+  } else if (failed.length < devArr.length) {
+    var ok = devArr.length - failed.length;
+    btn.textContent = t('qp.push.partial', {ok: ok, fail: failed.length});
+    btn.disabled = false; btn.style.opacity = ''; btn.style.background = '';
   } else {
-    btn.textContent = origText;
-    btn.disabled = false;
-    btn.style.opacity = '';
-    btn.style.background = '';
+    btn.textContent = t('qp.push.allFail') + ' (' + failed.join(', ') + ')';
+    btn.disabled = false; btn.style.opacity = ''; btn.style.background = '';
   }
 }
 
 // ── 初始化 ───────────────────────────────────────────────────────────────────
-loadAlbums();
+loadAlbums().then(function() { qpInitPills(); });
 </script>
 {% endblock %}

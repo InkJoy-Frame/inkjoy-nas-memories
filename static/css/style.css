@@ -447,20 +447,6 @@ body {
   color: var(--ink);
 }
 
-/* ── 快速推送区 ────────────────────────────────────────────────────────── */
-.quick-push-entry {
-  border: 2px dashed #c8e6c9;
-  border-radius: .5rem;
-  padding: 1.25rem;
-  text-align: center;
-  cursor: pointer;
-  transition: border-color .2s, background .2s;
-}
-.quick-push-entry:hover {
-  border-color: var(--ink);
-  background: #f0f7f4;
-}
-
 /* ── 小型操作按钮 ──────────────────────────────────────────────────────── */
 .btn-sm-outline {
   background: none;
@@ -538,26 +524,7 @@ body {
   font-weight: 600;
 }
 
-/* ── 快速推送设备卡片（复用 .device-card，缩小尺寸） ─────────────────── */
-.qp-device-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.qp-device-card {
-  width: 110px;
-  padding: .625rem .5rem .5rem;
-}
-.qp-device-card.picked {
-  border-color: var(--ink);
-  background: var(--ink-light);
-  box-shadow: 0 0 0 3px rgba(30,77,59,.15);
-}
-.qp-device-card .device-card-frame-box {
-  width: 80px; height: 80px;
-}
-
-/* ── 设备卡片网格（向导用，对齐 webtool） ─────────────────────────────── */
+/* ── 设备卡片网格（向导 + 快速推送共用，对齐 webtool） ────────────────── */
 .device-card-grid {
   display: flex;
   flex-wrap: wrap;
@@ -881,6 +848,113 @@ body {
   flex-shrink: 0; position: relative;
 }
 .folder-option-help:hover { border-color: var(--ink); color: var(--ink); }
+
+/* ── 快速推送预览（Cropper.js + 木框） ──────────────────────────────────── */
+#qpCropperClip {
+  position: relative;
+}
+#qpFrameOverlay {
+  display: none;
+  position: absolute;
+  pointer-events: none;
+  z-index: 10;
+  box-shadow:
+    0 0 0 14px #f5f1dc,
+    0 0 0 22px #8a5a2b,
+    0 6px 16px rgba(0, 0, 0, 0.18);
+  border-radius: 0;
+  opacity: 1;
+  transition: opacity 0.35s ease;
+}
+@media (max-width: 480px) {
+  #qpFrameOverlay {
+    box-shadow:
+      0 0 0 8px #f5f1dc,
+      0 0 0 13px #8a5a2b,
+      0 4px 10px rgba(0, 0, 0, 0.15);
+  }
+}
+.qp-cropper-wrapper {
+  overflow: hidden;
+  background: #0f172a;
+  max-height: 520px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#qpCropImage {
+  max-width: 100%;
+  display: block;
+  max-height: 520px;
+}
+#qpCropperClip .cropper-bg {
+  background-image: none;
+}
+.qp-zoom-hint {
+  font-size: 13px;
+  color: #64748b;
+  margin-bottom: 10px;
+}
+.qp-toolbar {
+  display: flex;
+  gap: .75rem;
+  margin-top: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.qp-push-footer {
+  margin-top: 1rem;
+  padding-bottom: 2rem;
+  text-align: center;
+}
+.qp-push-footer .ink-btn {
+  min-width: 200px;
+  padding: .875rem 2rem;
+  font-size: 1rem;
+}
+/* 不兼容设备（分辨率不匹配） */
+.device-card.incompatible {
+  opacity: 0.55;
+  cursor: pointer;
+  position: relative;
+}
+.incompatible-tag {
+  position: absolute;
+  top: 6px; left: 6px; right: 6px;
+  background: rgba(239,68,68,0.95);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-align: center;
+  padding: 3px 6px;
+  border-radius: 0.4rem;
+  pointer-events: none;
+  box-shadow: 0 2px 6px rgba(239,68,68,0.3);
+}
+
+.qp-selected-photo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--ink-light);
+  border-radius: .5rem;
+  margin-bottom: 12px;
+}
+.qp-selected-photo img {
+  width: 48px; height: 48px;
+  object-fit: cover; border-radius: 6px;
+  background: #e8e8e8;
+}
+.qp-selected-photo .qp-photo-name {
+  font-size: 13px; font-weight: 600;
+  flex: 1; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+.qp-selected-photo .qp-photo-change {
+  font-size: 12px; color: var(--ink);
+  cursor: pointer; white-space: nowrap;
+}
 .folder-option-help { position: relative; margin-left: 4px; vertical-align: middle; }
 .folder-option-help::before {
   content: attr(title); position: absolute;
