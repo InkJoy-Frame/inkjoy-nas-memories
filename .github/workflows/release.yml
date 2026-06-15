@@ -55,22 +55,56 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Make container package public
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PACKAGE_NAME="${GITHUB_REPOSITORY#*/}"
+          STATUS=$(gh api "orgs/${{ github.repository_owner }}/packages/container/${PACKAGE_NAME}" --jq '.visibility' 2>/dev/null || echo "unknown")
+          echo "Current visibility for ${PACKAGE_NAME}: ${STATUS}"
+          if [ "$STATUS" != "public" ]; then
+            echo "Setting package visibility to public..."
+            gh api --method PATCH "orgs/${{ github.repository_owner }}/packages/container/${PACKAGE_NAME}" \
+              --field visibility=public
+            echo "Package is now public"
+          else
+            echo "Package is already public"
+          fi
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
           body: |
-            ## Docker 镜像
+            ## Docker Image / Docker 镜像
+
+            Multi-arch image — Docker automatically selects the matching architecture on your NAS. No extra flags needed.
+            多架构镜像 — 在 NAS 上直接拉取即可，Docker 会自动匹配 CPU 架构，无需额外参数。
+
+            **On NAS / 在 NAS 上拉取：**
 
             ```bash
             docker pull ${{ env.REGISTRY }}/${{ steps.image.outputs.NAME }}:${{ steps.version.outputs.VERSION }}
             ```
 
-            ### 支持架构
-            - `linux/amd64` (x86_64) — 群晖 / 威联通 / 绿联 DXP 系列 / PC / 服务器
-            - `linux/arm64` (aarch64) — 绿联 DH 系列 / 树莓派 / ARM NAS
+            **On Desktop (export for NAS) / 在 Desktop 上拉取（导出给 NAS 用）：**
 
-            ### 快速使用
+            Specify `--platform` to pull the target architecture. Otherwise Docker pulls the version for your PC.
+            需用 `--platform` 指定目标架构，否则会拉取 PC 对应的版本。
+
+            ```bash
+            # x86 NAS (Synology, QNAP, UGREEN DXP, etc.) / x86 NAS（群晖、威联通、绿联 DXP 等）
+            docker pull --platform linux/amd64 ${{ env.REGISTRY }}/${{ steps.image.outputs.NAME }}:${{ steps.version.outputs.VERSION }}
+
+            # ARM NAS (UGREEN DH, Raspberry Pi, etc.) / ARM NAS（绿联 DH、树莓派等）
+            docker pull --platform linux/arm64 ${{ env.REGISTRY }}/${{ steps.image.outputs.NAME }}:${{ steps.version.outputs.VERSION }}
+            ```
+
+            ### Supported Architectures / 支持架构
+            - `linux/amd64` (x86_64) — Synology, QNAP, UGREEN DXP series, PC, server / 群晖、威联通、绿联 DXP 系列、PC、服务器
+            - `linux/arm64` (aarch64) — UGREEN DH series, Raspberry Pi, ARM NAS / 绿联 DH 系列、树莓派、ARM NAS
+
+            ### Quick Start / 快速使用
 
             ```bash
             docker run -d \
