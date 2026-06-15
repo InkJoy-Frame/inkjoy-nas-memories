@@ -120,13 +120,46 @@ python app.py
 
 Docker images are automatically built and published on every version tag via GitHub Actions. See [Releases](https://github.com/InkJoy-Frame/inkjoy-nas-memories/releases) for all versions.
 
-To update to the latest version:
+To update manually:
 
 ```bash
 docker pull ghcr.io/inkjoy-frame/inkjoy-nas-memories:latest
 docker stop inkjoy-manager && docker rm inkjoy-manager
 # Re-run the docker run command above
 ```
+
+### Auto Update (optional)
+
+Use [Watchtower](https://github.com/containrrr/watchtower) to auto-pull new images and recreate the container — set once, stay up to date.
+
+```yaml
+services:
+  inkjoy-manager:
+    image: ghcr.io/inkjoy-frame/inkjoy-nas-memories:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - /path/to/your/photos:/images
+      - /path/to/data:/data
+    environment:
+      - SECRET_KEY=your-secret-key
+      - TZ=Asia/Shanghai
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    restart: unless-stopped
+
+  watchtower:
+    image: containrrr/watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=86400
+      - WATCHTOWER_LABEL_ENABLE=true
+    restart: unless-stopped
+```
+
+Watchtower checks GHCR every 24 hours. When a new version is detected, it pulls the image and recreates the container with the same config. Your data in `/data` is safe — it lives on the mounted volume, not inside the container.
 
 ## API Dependency
 

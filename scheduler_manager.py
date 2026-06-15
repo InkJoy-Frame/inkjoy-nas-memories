@@ -16,6 +16,11 @@ _tz = 'Asia/Shanghai'
 scheduler = BackgroundScheduler(timezone=_tz)
 
 _images_dir = '/images'
+_SYSTEM_EXCLUDED_DIRS = {
+    '@eaDir', '@Recycle', '#recycle', '.recycle',
+    '.thumbnails', '.synology_thumbnails', 'thumbs',
+    '.DS_Store', '__MACOSX', 'Thumbs.db',
+}
 
 
 def init_scheduler(app):
@@ -102,8 +107,7 @@ def _pick_random_image(schedule_id, folder, max_scan=2000):
     chosen = None
     count = 0
     for root, dirs, files in os.walk(folder):
-        # 跳过隐藏目录（如 .thumbnails）
-        dirs[:] = [d for d in dirs if not d.startswith('.')]
+        dirs[:] = [d for d in dirs if d not in _SYSTEM_EXCLUDED_DIRS and not d.startswith('.')]
         for fname in files:
             if os.path.splitext(fname)[1].lower() not in IMAGE_EXTENSIONS:
                 continue

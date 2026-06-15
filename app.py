@@ -9,7 +9,7 @@ from flask import (
     Flask, render_template, request, session,
     redirect, url_for, jsonify, send_file, Response,
 )
-from PIL import Image
+from PIL import Image, ImageOps
 from image_utils import IMAGE_EXTENSIONS, HEIC_EXTENSIONS, RAW_EXTENSIONS, open_image, ensure_rgb, save_for_display
 
 app = Flask(__name__)
@@ -367,8 +367,14 @@ def api_upload():
 
         img = ensure_rgb(Image.open(file.stream))
 
+        dw = request.form.get('device_width', type=int)
+        dh = request.form.get('device_height', type=int)
+
+        if dw and dh:
+            img = ImageOps.fit(img, (dw, dh), Image.LANCZOS)
+
         output = BytesIO()
-        ext, mimetype = save_for_display(img, output)
+        ext, _ = save_for_display(img, output)
         output.seek(0)
 
         client = InkJoyClient(session['server_url'], session['token'])

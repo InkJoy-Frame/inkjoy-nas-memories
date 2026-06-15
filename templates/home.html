@@ -1047,6 +1047,8 @@ async function qpDoPush() {
     var form = new FormData();
     form.append('device_id', dev.deviceId);
     form.append('file', imageBlob, 'push.jpg');
+    if (dev.resolution && dev.resolution.width) form.append('device_width', dev.resolution.width);
+    if (dev.resolution && dev.resolution.height) form.append('device_height', dev.resolution.height);
 
     try {
       var resp = await fetch('/api/upload', {method: 'POST', body: form});
