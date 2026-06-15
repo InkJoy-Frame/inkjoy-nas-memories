@@ -997,16 +997,8 @@ async function qpSelectPhoto(path, name) {
   devicesCache = await getDevices();
   var grid = document.getElementById('qpDevices');
   grid.innerHTML = devicesCache.map(function(d) {
-    var isOnline = d.status === 'ONLINE' || d.status === 1;
-    var thumb = d.lastPlayThumbnailUrl;
-    var thumbInner = thumb
-      ? '<img src="' + esc(thumb) + '" alt="">'
-      : '<span style="font-size:18px;color:#bbb">🖼</span>';
-
-    return '<div class="qp-device-card" data-did="' + d.deviceId + '" onclick="qpToggleDevice(this,\'' + esc(d.deviceId) + '\')">'
-      + '<div class="qp-device-dot ' + (isOnline ? 'online' : '') + '"></div>'
-      + '<div class="qp-device-thumb">' + thumbInner + '</div>'
-      + '<div class="qp-device-name">' + esc(d.deviceName || d.deviceId) + '</div>'
+    return '<div class="device-card qp-device-card" data-did="' + d.deviceId + '" onclick="qpToggleDevice(this,\'' + esc(d.deviceId) + '\')">'
+      + deviceCardHtml(d)
       + '</div>';
   }).join('');
 }
