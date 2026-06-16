@@ -127,6 +127,26 @@ def _pick_random_image(schedule_id, folder, max_scan=2000):
     return chosen
 
 
+def _is_landscape_orientation(orientation):
+    return orientation in (90, 270, '90', 'LANDSCAPE')
+
+
+def _processing_size(device_width, device_height, orientation):
+    """横屏相框：先按逻辑横屏尺寸处理，再旋转回物理分辨率。"""
+    if not device_width or not device_height:
+        return None, None, 0
+    if _is_landscape_orientation(orientation):
+        return device_height, device_width, orientation
+    return device_width, device_height, 0
+
+
+def _rotate_to_device(img, orientation):
+    """将逻辑横屏画面顺时针旋转 90° 为设备物理像素方向。"""
+    if _is_landscape_orientation(orientation):
+        return img.transpose(Image.ROTATE_270)
+    return img
+
+
 def _apply_blur_fill(img, device_width, device_height):
     """毛玻璃填充：以模糊放大的原图为背景，居中叠加适应缩放的原图。"""
     # 背景：等比例放大裁切至目标尺寸，再做高斯模糊
@@ -178,6 +198,15 @@ def execute_schedule(schedule_id):
         update_account_token(account['id'], login_data['token'])
         logger.info(f'[schedule:{schedule_id}] login OK')
 
+        device_orientation = schedule.get('device_orientation') or 0
+        try:
+            for dev in client.get_devices():
+                if dev.get('deviceId') == schedule['device_id']:
+                    device_orientation = dev.get('orientation') or device_orientation
+                    break
+        except Exception as _e:
+            logger.warning(f'[schedule:{schedule_id}] could not refresh device orientation: {_e}')
+
         folder = schedule['folder_path']
         if not os.path.isabs(folder):
             folder = os.path.join(_images_dir, folder)
@@ -197,17 +226,22 @@ def execute_schedule(schedule_id):
 
         img = ensure_rgb(open_image(image_path))
 
-        if device_width and device_height:
+        proc_w, proc_h, orient = _processing_size(device_width, device_height, device_orientation)
+
+        if proc_w and proc_h:
             logger.info(
-                f'[schedule:{schedule_id}] resize {img.size} → {device_width}×{device_height} mode={resize_mode}'
+                f'[schedule:{schedule_id}] resize {img.size} → {proc_w}×{proc_h} '
+                f'(orient={device_orientation}) mode={resize_mode}'
             )
 
             if resize_mode == 'crop':
-                img = ImageOps.fit(img, (device_width, device_height), Image.LANCZOS)
+                img = ImageOps.fit(img, (proc_w, proc_h), Image.LANCZOS)
             elif resize_mode == 'blur':
-                img = _apply_blur_fill(img, device_width, device_height)
+                img = _apply_blur_fill(img, proc_w, proc_h)
             else:
-                img = img.resize((device_width, device_height), Image.LANCZOS)
+                img = img.resize((proc_w, proc_h), Image.LANCZOS)
+
+            img = _rotate_to_device(img, orient)
 
         output = BytesIO()
         ext, mimetype = save_for_display(img, output)

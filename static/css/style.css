@@ -877,7 +877,7 @@ body {
 .qp-cropper-wrapper {
   overflow: hidden;
   background: #0f172a;
-  max-height: 520px;
+  max-height: min(360px, 45vh);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -885,7 +885,7 @@ body {
 #qpCropImage {
   max-width: 100%;
   display: block;
-  max-height: 520px;
+  max-height: min(360px, 45vh);
 }
 #qpCropperClip .cropper-bg {
   background-image: none;
@@ -912,6 +912,48 @@ body {
   padding: .875rem 2rem;
   font-size: 1rem;
 }
+
+/* Quick Push Modal */
+.qp-modal-overlay {
+  position: fixed; inset: 0; z-index: 900;
+  background: rgba(0,0,0,.45);
+  display: flex; align-items: center; justify-content: center;
+  padding: 1rem;
+}
+.qp-modal-box {
+  background: #fff; border-radius: 1.25rem;
+  width: 100%; max-width: 560px;
+  max-height: calc(100vh - 2rem);
+  display: flex; flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,.2);
+}
+.qp-modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 1.25rem 1.25rem .75rem; flex-shrink: 0;
+}
+.qp-modal-title {
+  font-size: 1.1rem; font-weight: 700; color: #1e293b;
+}
+.qp-modal-close {
+  background: none; border: none; font-size: 1.5rem;
+  line-height: 1; color: #94a3b8; cursor: pointer; padding: 0 .25rem;
+}
+.qp-modal-close:hover { color: #475569; }
+.qp-modal-body {
+  overflow-y: auto; min-height: 0; flex: 1;
+  padding: 0 1.25rem 1rem;
+}
+.qp-modal-footer {
+  display: flex; gap: .75rem; justify-content: flex-end;
+  padding: 1rem 1.25rem; border-top: 1px solid #eee; flex-shrink: 0;
+}
+.qp-device-scroll {
+  max-height: min(360px, 40vh);
+  overflow-y: auto;
+  margin-bottom: .5rem;
+  padding-right: 4px;
+}
+body.qp-modal-open { overflow: hidden; }
 /* 不兼容设备（分辨率不匹配） */
 .device-card.incompatible {
   opacity: 0.55;

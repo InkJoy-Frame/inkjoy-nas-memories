@@ -17,7 +17,10 @@
       const resp = await _origFetch(...args);
       if (resp.status === 401) {
         const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
-        if (url.startsWith('/api/')) { window.location.href = '/login'; return resp; }
+        const method = ((args[1] && args[1].method) || 'GET').toUpperCase();
+        if (url.startsWith('/api/') && method === 'GET') {
+          window.location.href = '/login';
+        }
       }
       return resp;
     };

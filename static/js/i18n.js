@@ -61,6 +61,7 @@ const I18N = {
     'qp.noDevice':             'No frames found',
     'qp.reselect':             'Re-select',
     'qp.incompatible':         'Resolution mismatch',
+    'error.sessionExpired':    'Login expired, please sign in again',
 
     /* ── Binding ──────────────────────────────── */
     'bind.add':                '+ Add Frame',
@@ -153,6 +154,7 @@ const I18N = {
     'qp.noDevice':             '未找到相框',
     'qp.reselect':             '重新选择',
     'qp.incompatible':         '分辨率不匹配',
+    'error.sessionExpired':    '登录已过期，请重新登录',
 
     /* ── Binding ──────────────────────────────── */
     'bind.add':                '+ 添加相框',

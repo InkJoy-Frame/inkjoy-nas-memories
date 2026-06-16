@@ -37,39 +37,43 @@
   </div>
 </div>
 
-<!-- 快速推送配置区（选中照片后显示） -->
-<div id="qpConfigSection" style="display:none">
-  <div id="qpSelectedPhotoBar" class="qp-selected-photo">
-    <img id="qpSelectedThumb" src="" alt="">
-    <div class="qp-photo-name" id="qpPhotoName"></div>
-    <span class="qp-photo-change" onclick="qpChangePhoto()" data-i18n="qp.reselect">Re-select</span>
-  </div>
+<!-- 快速推送 Modal（选中照片后弹出） -->
+<div id="qpModal" class="qp-modal-overlay" style="display:none" onclick="if(event.target===this)qpCloseModal()">
+  <div class="qp-modal-box">
+    <div class="qp-modal-header">
+      <div class="qp-modal-title" data-i18n="home.push.title">Quick Push</div>
+      <button type="button" class="qp-modal-close" onclick="qpCloseModal()" aria-label="Close">&times;</button>
+    </div>
+    <div class="qp-modal-body">
+      <div id="qpSelectedPhotoBar" class="qp-selected-photo">
+        <img id="qpSelectedThumb" src="" alt="">
+        <div class="qp-photo-name" id="qpPhotoName"></div>
+        <span class="qp-photo-change" onclick="qpChangePhoto()" data-i18n="qp.reselect">Re-select</span>
+      </div>
 
-  <div class="content-card">
-    <div class="content-card-body" style="padding:1.25rem">
       <div class="wizard-step-label" data-i18n="bind.device">Target Frame</div>
       <div style="color:#888;font-size:13px;margin-bottom:10px" data-i18n="wizard.step.devices.hint">Select one or more frames to push photos to.</div>
-      <div class="device-card-grid" id="qpDeviceGrid"></div>
-    </div>
-  </div>
+      <div class="qp-device-scroll">
+        <div class="device-card-grid" id="qpDeviceGrid"></div>
+      </div>
 
-  <div id="qpPreviewCard" class="content-card" style="display:none">
-    <div class="content-card-body" style="padding:1.25rem">
-      <div class="qp-zoom-hint" data-i18n="qp.zoom.hint">💡 Scroll to zoom, drag to position</div>
-      <div id="qpCropperClip">
-        <div id="qpFrameOverlay"></div>
-        <div class="qp-cropper-wrapper">
-          <img id="qpCropImage" src="" alt="">
+      <div id="qpPreviewCard" style="display:none;margin-top:1rem">
+        <div class="qp-zoom-hint" data-i18n="qp.zoom.hint">💡 Scroll to zoom, drag to position</div>
+        <div id="qpCropperClip">
+          <div id="qpFrameOverlay"></div>
+          <div class="qp-cropper-wrapper">
+            <img id="qpCropImage" src="" alt="">
+          </div>
+        </div>
+        <div class="qp-toolbar">
+          <button class="btn-sm-outline" onclick="qpToggleRotation()">🔄 <span data-i18n="qp.rotate">Rotate</span></button>
         </div>
       </div>
-      <div class="qp-toolbar">
-        <button class="btn-sm-outline" onclick="qpToggleRotation()">🔄 <span data-i18n="qp.rotate">Rotate</span></button>
-      </div>
     </div>
-  </div>
-
-  <div class="qp-push-footer">
-    <button class="ink-btn ink-btn-primary" id="qpPushBtn" onclick="qpDoPush()" disabled style="opacity:.4" data-i18n="qp.push">Push to Frame</button>
+    <div class="qp-modal-footer">
+      <button type="button" class="ink-btn ink-btn-secondary" onclick="qpCloseModal()" data-i18n="albums.modal.cancel">Cancel</button>
+      <button type="button" class="ink-btn ink-btn-primary" id="qpPushBtn" onclick="qpDoPush()" disabled style="opacity:.4" data-i18n="qp.push">Push to Frame</button>
+    </div>
   </div>
 </div>
 
@@ -575,9 +579,14 @@ function closeWizard() {
 function orientedSize(dev) {
   var res = dev && dev.resolution;
   if (!res || !res.width || !res.height) return null;
-  return dev.orientation === 90
+  return devIsLandscape(dev)
     ? { w: res.height, h: res.width }
     : { w: res.width,  h: res.height };
+}
+
+function devIsLandscape(dev) {
+  var o = dev && dev.orientation;
+  return o === 90 || o === 270 || o === '90' || o === 'LANDSCAPE';
 }
 
 function deviceCardHtml(dev) {
@@ -589,7 +598,7 @@ function deviceCardHtml(dev) {
     var thumb = dev.lastPlayThumbnailUrl;
     var thumbHtml = '';
 
-    if (thumb && dev.orientation === 90) {
+    if (thumb && devIsLandscape(dev)) {
       var pw = (size.h / size.w * 100).toFixed(1);
       var ph = (size.w / size.h * 100).toFixed(1);
       thumbHtml = '<img class="frame-thumb frame-thumb-rot" style="width:' + pw + '%;height:' + ph + '%" src="' + esc(thumb) + '" alt="">';
@@ -709,6 +718,7 @@ async function wizardCreate() {
           device_name: dev.deviceName || dev.deviceId,
           device_width: dev.resolution ? dev.resolution.width : null,
           device_height: dev.resolution ? dev.resolution.height : null,
+          device_orientation: dev.orientation || 0,
           folder_path: folderPath,
           schedule_time: time,
           resize_mode: resize,
@@ -742,7 +752,7 @@ async function addBinding(albumId) {
 
   var deviceOptions = available.map(function(d) {
     var statusDot = d.status === 'ONLINE' ? '🟢' : '⚫';
-    return '<option value="' + esc(d.deviceId) + '" data-name="' + esc(d.deviceName || d.deviceId) + '" data-w="' + (d.resolution ? d.resolution.width : '') + '" data-h="' + (d.resolution ? d.resolution.height : '') + '">' + esc(d.deviceName || d.deviceId) + ' ' + statusDot + '</option>';
+    return '<option value="' + esc(d.deviceId) + '" data-name="' + esc(d.deviceName || d.deviceId) + '" data-w="' + (d.resolution ? d.resolution.width : '') + '" data-h="' + (d.resolution ? d.resolution.height : '') + '" data-orient="' + (d.orientation || 0) + '">' + esc(d.deviceName || d.deviceId) + ' ' + statusDot + '</option>';
   }).join('');
 
   var bodyHtml = ''
@@ -786,6 +796,7 @@ async function addBinding(albumId) {
           device_name: opt.dataset.name,
           device_width: parseInt(opt.dataset.w) || null,
           device_height: parseInt(opt.dataset.h) || null,
+          device_orientation: parseInt(opt.dataset.orient) || 0,
           folder_path: folderPath,
           schedule_time: time,
           resize_mode: resize,
@@ -1094,7 +1105,7 @@ function qpGetOutputCanvas(dev) {
 }
 
 function qpToDeviceCanvas(canvas, dev) {
-  if (!dev || dev.orientation !== 90) return canvas;
+  if (!dev || !devIsLandscape(dev)) return canvas;
   var out = document.createElement('canvas');
   out.width = canvas.height; out.height = canvas.width;
   var ctx = out.getContext('2d');
@@ -1114,11 +1125,21 @@ function qpInitPills() {
   document.getElementById('qpSourcePills').innerHTML = pills;
 }
 
+function qpOpenModal() {
+  document.getElementById('qpModal').style.display = '';
+  document.body.classList.add('qp-modal-open');
+}
+
+function qpCloseModal() {
+  document.getElementById('qpModal').style.display = 'none';
+  document.body.classList.remove('qp-modal-open');
+  qpReset();
+}
+
 function qpReset() {
   qpSelectedPath = null;
   qpPickedDevices = new Set();
   qpDestroyCropper();
-  document.getElementById('qpConfigSection').style.display = 'none';
   document.getElementById('qpPreviewCard').style.display = 'none';
 
   var pushBtn = document.getElementById('qpPushBtn');
@@ -1203,7 +1224,7 @@ async function qpSelectPhoto(path, name) {
 
   document.getElementById('qpSelectedThumb').src = '/api/image?path=' + encodeURIComponent(path) + '&thumb=true';
   document.getElementById('qpPhotoName').textContent = name;
-  document.getElementById('qpConfigSection').style.display = '';
+  qpOpenModal();
   document.getElementById('qpPreviewCard').style.display = 'none';
 
   var pushBtn = document.getElementById('qpPushBtn');
@@ -1224,15 +1245,17 @@ async function qpSelectPhoto(path, name) {
     return '<div class="device-card" data-device-id="' + esc(d.deviceId) + '" onclick="qpToggleDevice(this,\'' + esc(d.deviceId) + '\')">'
       + deviceCardHtml(d) + '</div>';
   }).join('');
-
-  setTimeout(function() {
-    var section = document.getElementById('qpConfigSection');
-    if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, 100);
 }
 
 function qpChangePhoto() {
-  qpReset();
+  document.getElementById('qpModal').style.display = 'none';
+  document.body.classList.remove('qp-modal-open');
+  qpSelectedPath = null;
+  qpPickedDevices = new Set();
+  qpDestroyCropper();
+  document.getElementById('qpPreviewCard').style.display = 'none';
+  var pushBtn = document.getElementById('qpPushBtn');
+  if (pushBtn) { pushBtn.disabled = true; pushBtn.style.opacity = '.4'; pushBtn.textContent = t('qp.push'); pushBtn.style.background = ''; }
   document.getElementById('qpPhotoGrid').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
@@ -1324,7 +1347,6 @@ function qpMaybeInitPreview() {
   }
 
   var previewCard = document.getElementById('qpPreviewCard');
-  var wasHidden = previewCard.style.display === 'none';
   previewCard.style.display = '';
 
   var imgEl = document.getElementById('qpCropImage');
@@ -1346,12 +1368,6 @@ function qpMaybeInitPreview() {
 
   imgEl.src = newSrc;
   qpInitCropper(imgEl, dev);
-
-  if (wasHidden) {
-    setTimeout(function() {
-      previewCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 200);
-  }
 }
 
 async function qpDoPush() {
@@ -1391,8 +1407,15 @@ async function qpDoPush() {
 
     try {
       var resp = await fetch('/api/upload', {method: 'POST', body: form});
+      if (resp.status === 401) {
+        failed.push((dev.deviceName || dev.deviceId) + ': ' + t('error.sessionExpired'));
+        break;
+      }
       var data = await resp.json();
-      if (!data.success) failed.push(dev.deviceName || dev.deviceId);
+      if (!data.success) {
+        var label = dev.deviceName || dev.deviceId;
+        failed.push(data.error ? (label + ': ' + data.error) : label);
+      }
     } catch(e) {
       failed.push(dev.deviceName || dev.deviceId);
     }
@@ -1401,7 +1424,7 @@ async function qpDoPush() {
   if (failed.length === 0) {
     btn.innerHTML = '✓ ' + t('qp.push.success');
     btn.style.background = '#4caf50';
-    setTimeout(function() { qpReset(); }, 2000);
+    setTimeout(function() { qpCloseModal(); }, 2000);
   } else if (failed.length < devArr.length) {
     var ok = devArr.length - failed.length;
     btn.textContent = t('qp.push.partial', {ok: ok, fail: failed.length});

@@ -93,6 +93,43 @@ def _handle_api_error(e):
     return jsonify({'success': False, 'error': str(e)}), 400
 
 
+def _try_refresh_token():
+    """上游 token 过期时，用数据库中保存的账号密码重新登录并更新 session。"""
+    account_id = session.get('account_id')
+    if not account_id:
+        return False
+
+    from database import get_account, update_account_token
+    from api_client import InkJoyClient
+
+    account = get_account(account_id)
+    if not account or not account.get('password'):
+        return False
+
+    try:
+        client = InkJoyClient(account['server_url'])
+        login_data = client.login(account['email'], account['password'])
+        session['token'] = login_data['token']
+        update_account_token(account_id, login_data['token'])
+        logging.getLogger(__name__).info(f'token refreshed for {account["email"]}')
+        return True
+    except Exception as e:
+        logging.getLogger(__name__).warning(f'token refresh failed: {e}')
+        return False
+
+
+def _call_inkjoy(make_client_fn):
+    """执行 InkJoy API 调用；401 时自动刷新 token 并重试一次。"""
+    from requests.exceptions import HTTPError
+
+    try:
+        return make_client_fn()
+    except HTTPError as e:
+        if e.response is not None and e.response.status_code == 401 and _try_refresh_token():
+            return make_client_fn()
+        raise
+
+
 def _require_account_id():
     """从 session 取 account_id，缺失时返回 (None, 401 response)。"""
     aid = session.get('account_id')
@@ -229,8 +266,11 @@ def logout():
 def api_devices():
     from api_client import InkJoyClient
     try:
-        client = InkJoyClient(session['server_url'], session['token'])
-        devices = client.get_devices()
+        def _fetch():
+            client = InkJoyClient(session['server_url'], session['token'])
+            return client.get_devices()
+
+        devices = _call_inkjoy(_fetch)
         return jsonify({'success': True, 'devices': devices})
     except Exception as e:
         return _handle_api_error(e)
@@ -384,8 +424,11 @@ def api_upload():
             output.seek(0)
             raw = output.read()
 
-        client = InkJoyClient(session['server_url'], session['token'])
-        result = client.publish_image(device_id, raw, filename=f'image.{ext}')
+        def _upload():
+            client = InkJoyClient(session['server_url'], session['token'])
+            return client.publish_image(device_id, raw, filename=f'image.{ext}')
+
+        result = _call_inkjoy(_upload)
         return jsonify({'success': True, 'result': result})
     except Exception as e:
         return _handle_api_error(e)

@@ -72,6 +72,9 @@ def init_db(app):
     if 'nas_album_id' not in sched_cols:
         conn.execute('ALTER TABLE schedules ADD COLUMN nas_album_id INTEGER')
 
+    if 'device_orientation' not in sched_cols:
+        conn.execute('ALTER TABLE schedules ADD COLUMN device_orientation INTEGER DEFAULT 0')
+
     conn.commit()
     conn.close()
 
@@ -171,11 +174,12 @@ def create_schedule(data):
     cur = conn.execute(
         '''INSERT INTO schedules
            (name, account_id, device_id, device_name, device_width, device_height,
-            folder_path, schedule_time, resize_mode, enabled, nas_album_id)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?)''',
+            device_orientation, folder_path, schedule_time, resize_mode, enabled, nas_album_id)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)''',
         (
             data['name'], data['account_id'], data['device_id'],
             data.get('device_name'), data.get('device_width'), data.get('device_height'),
+            data.get('device_orientation') or 0,
             data['folder_path'], data['schedule_time'],
             data.get('resize_mode', 'crop'), 1,
             data.get('nas_album_id'),
