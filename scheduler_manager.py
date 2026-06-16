@@ -128,7 +128,7 @@ def _pick_random_image(schedule_id, folder, max_scan=2000):
 
 
 def _is_landscape_orientation(orientation):
-    return orientation in (90, 270, '90', 'LANDSCAPE')
+    return orientation == 90
 
 
 def _processing_size(device_width, device_height, orientation):

@@ -585,8 +585,7 @@ function orientedSize(dev) {
 }
 
 function devIsLandscape(dev) {
-  var o = dev && dev.orientation;
-  return o === 90 || o === 270 || o === '90' || o === 'LANDSCAPE';
+  return (dev && dev.orientation) === 90;
 }
 
 function deviceCardHtml(dev) {
