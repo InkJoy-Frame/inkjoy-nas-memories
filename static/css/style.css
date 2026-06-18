@@ -394,12 +394,6 @@ body {
   font-size: 11px;
   color: #999;
 }
-.album-item-actions {
-  display: flex;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
 /* ── 设备绑定行 ────────────────────────────────────────────────────────── */
 .binding-list { padding: 0 .875rem .625rem; }
 .binding-row {
@@ -416,6 +410,18 @@ body {
   opacity: .5;
   border-left-color: #ccc;
 }
+.binding-thumb {
+  flex-shrink: 0;
+  border-radius: 3px;
+  overflow: hidden;
+  background: #eee;
+  box-shadow: 0 0 0 1.5px rgba(139,90,43,.25);
+}
+.binding-thumb.is-portrait { width: 24px; height: 32px; }
+.binding-thumb.is-landscape { width: 32px; height: 24px; }
+.binding-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.binding-info { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.binding-info-text { min-width: 0; }
 .binding-device { font-size: 12px; font-weight: 500; }
 .binding-detail { font-size: 11px; color: #888; }
 .binding-status {
@@ -430,6 +436,18 @@ body {
   color: #bbb;
   font-size: 11px;
 }
+.binding-add {
+  text-align: center;
+  padding: .5rem;
+  margin-top: .375rem;
+  font-size: 12px;
+  color: #999;
+  cursor: pointer;
+  border-radius: 6px;
+  border: 1px dashed #ddd;
+  transition: color .15s, border-color .15s;
+}
+.binding-add:hover { color: var(--ink); border-color: var(--ink); }
 
 /* ── 新建相册虚线入口 ──────────────────────────────────────────────────── */
 .album-add-card {
@@ -700,7 +718,7 @@ body {
 }
 .ink-modal-box {
   background: #fff; border-radius: 1.25rem;
-  padding: 2rem; width: 100%; max-width: 440px;
+  padding: 2rem; width: 100%; max-width: 520px;
   max-height: calc(100vh - 2rem);
   display: flex; flex-direction: column;
   box-shadow: 0 20px 60px rgba(0,0,0,.2);
@@ -738,10 +756,14 @@ body {
 .ink-btn-primary {
   background: var(--ink); color: #fff;
 }
-.ink-btn-primary:hover {
+.ink-btn-primary:hover:not(:disabled) {
   background: var(--ink-dark);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(30,77,59,.35);
+}
+.ink-btn-primary:disabled {
+  opacity: .4;
+  cursor: not-allowed;
 }
 .ink-btn-secondary {
   background: #fff; color: #1e293b;
@@ -954,6 +976,24 @@ body {
   padding-right: 4px;
 }
 body.qp-modal-open { overflow: hidden; }
+/* 已绑定设备 */
+.device-card.bound {
+  opacity: .5;
+  cursor: default;
+  pointer-events: none;
+}
+.bound-badge {
+  position: absolute;
+  top: 6px; right: 6px;
+  background: #94a3b8;
+  color: #fff;
+  font-size: .6rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: .3rem;
+  pointer-events: none;
+}
+
 /* 不兼容设备（分辨率不匹配） */
 .device-card.incompatible {
   opacity: 0.55;

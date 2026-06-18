@@ -201,6 +201,7 @@ function inkModalShow(title, bodyHtml, actions) {
     btn.className = 'ink-btn ' + (a.cls || '');
     btn.textContent = a.label;
     btn.onclick = a.onClick;
+    if (a.disabled) btn.disabled = true;
     footer.appendChild(btn);
   });
 
@@ -294,9 +295,15 @@ function renderAlbums() {
 
 // ── 自动播放卡片 ─────────────────────────────────────────────────────────────
 
+function albumMetaText(imgCount, folderCount) {
+  return getLang() === 'zh'
+    ? `${imgCount} 张照片 · ${folderCount} 个文件夹`
+    : `${imgCount} ${imgCount === 1 ? 'photo' : 'photos'} · ${folderCount} ${folderCount === 1 ? 'folder' : 'folders'}`;
+}
+
 function renderAlbumCard(album) {
   const coverHtml = album.coverPath
-    ? `<img src="/api/image?path=${encodeURIComponent(album.coverPath)}&thumb=true" alt="" loading="lazy">`
+    ? `<img src="/api/image?path=${encodeURIComponent(album.coverPath)}&thumb=true" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{style:'font-size:18px;color:#bbb',textContent:'🖼️'}))">`
     : '<span style="font-size:18px;color:#bbb">🖼️</span>';
 
   let folderCount = 1;
@@ -313,15 +320,15 @@ function renderAlbumCard(album) {
           <div class="album-item-thumb">${coverHtml}</div>
           <div>
             <div class="album-item-name" title="${esc(album.name)}">${esc(album.name)}</div>
-            <div class="album-item-meta">📷 ${album.imgCount ?? 0} · ${folderCount} ${getLang() === 'zh' ? '个文件夹' : (folderCount === 1 ? 'folder' : 'folders')}</div>
+            <div class="album-item-meta">${albumMetaText(album.imgCount ?? 0, folderCount)}</div>
           </div>
         </div>
-        <div class="album-item-actions">
-          <button class="btn-sm-outline" onclick="addBinding(${album.id})">${t('bind.add')}</button>
-          <button style="background:none;border:none;color:#999;font-size:14px;cursor:pointer;padding:4px" onclick="event.stopPropagation();showAlbumMenu(event,${album.id},'${esc(album.name)}')" title="⋮">⋮</button>
-        </div>
+        <button style="background:none;border:none;color:#999;font-size:14px;cursor:pointer;padding:4px" onclick="event.stopPropagation();showAlbumMenu(event,${album.id},'${esc(album.name)}')" title="⋮">⋮</button>
       </div>
-      <div class="binding-list">${bindingsHtml}</div>
+      <div class="binding-list">
+        ${bindingsHtml}
+        <div class="binding-add" onclick="addBinding(${album.id})">${t('bind.add')}</div>
+      </div>
     </div>`;
 }
 
@@ -350,11 +357,21 @@ function renderBindingRow(s) {
       ? `<span class="badge bg-danger" style="font-size:10px">${t('sched.badge.err')}</span>`
       : `<span class="badge bg-secondary" style="font-size:10px">${t('sched.badge.never')}</span>`;
 
+  const dev = devicesCache.find(d => d.deviceId === s.device_id);
+  const thumb = dev && dev.lastPlayThumbnailUrl;
+  const isLand = devIsLandscape(dev);
+  const thumbHtml = thumb
+    ? `<div class="binding-thumb ${isLand ? 'is-landscape' : 'is-portrait'}"><img src="${esc(thumb)}" alt=""></div>`
+    : '';
+
   return `
     <div class="binding-row ${s.enabled ? '' : 'disabled'}">
-      <div>
-        <div class="binding-device">${esc(s.device_name || s.device_id)}</div>
-        <div class="binding-detail">${t('bind.daily')} ${s.schedule_time} · ${resizeLabel(s.resize_mode)} ${nextHtml}</div>
+      <div class="binding-info">
+        ${thumbHtml}
+        <div class="binding-info-text">
+          <div class="binding-device">${esc(s.device_name || s.device_id)}</div>
+          <div class="binding-detail">${t('bind.daily')} ${s.schedule_time} · ${resizeLabel(s.resize_mode)} ${nextHtml}</div>
+        </div>
       </div>
       <div class="binding-status">
         <button onclick="runBinding(${s.id},this)" title="${t('sched.btn.run')}" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px">▶</button>
@@ -771,6 +788,18 @@ async function wizardCreate() {
 
 // ── 绑定操作 ────────────────────────────────────────────────────────────────
 
+var _bindPickedDeviceId = null;
+
+function _bindSelectDevice(el, deviceId) {
+  var grid = document.getElementById('bindDeviceGrid');
+  grid.querySelectorAll('.device-card.selected').forEach(function(c) { c.classList.remove('selected'); });
+  el.classList.add('selected');
+  _bindPickedDeviceId = deviceId;
+
+  var okBtn = document.querySelector('#inkModal .ink-btn-primary');
+  if (okBtn) okBtn.disabled = false;
+}
+
 async function addBinding(albumId) {
   var album = albumsData.find(function(a) { return a.id === albumId; });
   if (!album) return;
@@ -779,40 +808,43 @@ async function addBinding(albumId) {
 
   var boundDeviceIds = {};
   album.schedules.forEach(function(s) { boundDeviceIds[s.device_id] = true; });
-  var available = devices.filter(function(d) { return !boundDeviceIds[d.deviceId]; });
 
-  if (!available.length) {
-    await inkConfirm(t('bind.modal.title'), getLang() === 'zh' ? '所有相框都已添加' : 'All frames are already added');
-    return;
-  }
+  _bindPickedDeviceId = null;
 
-  var deviceOptions = available.map(function(d) {
-    var statusDot = d.status === 'ONLINE' ? '🟢' : '⚫';
-    return '<option value="' + esc(d.deviceId) + '" data-name="' + esc(d.deviceName || d.deviceId) + '" data-w="' + (d.resolution ? d.resolution.width : '') + '" data-h="' + (d.resolution ? d.resolution.height : '') + '" data-orient="' + (d.orientation || 0) + '">' + esc(d.deviceName || d.deviceId) + ' ' + statusDot + '</option>';
+  var cardsHtml = devices.map(function(dev) {
+    var isBound = !!boundDeviceIds[dev.deviceId];
+    var cls = 'device-card' + (isBound ? ' bound' : '');
+    var onclick = isBound ? '' : ' onclick="_bindSelectDevice(this,\'' + esc(dev.deviceId) + '\')"';
+    return '<div class="' + cls + '"' + onclick + '>'
+      + deviceCardHtml(dev)
+      + (isBound ? '<div class="bound-badge">' + t('bind.bound') + '</div>' : '')
+      + '</div>';
   }).join('');
 
   var bodyHtml = ''
     + '<div style="margin-bottom:1rem">'
-    +   '<div style="font-size:13px;font-weight:600;color:#475569;margin-bottom:.5rem">' + t('bind.device') + '</div>'
-    +   '<select id="bindDevice" class="ink-modal-input" style="margin-top:0">' + deviceOptions + '</select>'
+    +   '<div class="device-card-grid" id="bindDeviceGrid" style="justify-content:center">' + cardsHtml + '</div>'
     + '</div>'
-    + '<div style="margin-bottom:1rem">'
-    +   '<div style="font-size:13px;font-weight:600;color:#475569;margin-bottom:.5rem">' + t('bind.time') + '</div>'
-    +   '<input type="time" id="bindTime" class="ink-modal-input" style="margin-top:0" value="08:00">'
-    + '</div>'
-    + '<div>'
-    +   '<div style="font-size:13px;font-weight:600;color:#475569;margin-bottom:.5rem">' + t('bind.resize') + '</div>'
-    +   '<select id="bindResize" class="ink-modal-input" style="margin-top:0">'
-    +     '<option value="blur">' + t('sched.resize.blur') + '</option>'
-    +     '<option value="crop">' + t('sched.resize.crop') + '</option>'
-    +   '</select>'
+    + '<div style="display:flex;gap:1rem;flex-wrap:wrap">'
+    +   '<div style="flex:1;min-width:120px">'
+    +     '<div style="font-size:13px;font-weight:600;color:#475569;margin-bottom:.375rem">' + t('bind.time') + '</div>'
+    +     '<input type="time" id="bindTime" class="ink-modal-input" style="margin-top:0" value="08:00">'
+    +   '</div>'
+    +   '<div style="flex:1;min-width:120px">'
+    +     '<div style="font-size:13px;font-weight:600;color:#475569;margin-bottom:.375rem">' + t('bind.resize') + '</div>'
+    +     '<select id="bindResize" class="ink-modal-input" style="margin-top:0">'
+    +       '<option value="blur">' + t('sched.resize.blur') + '</option>'
+    +       '<option value="crop">' + t('sched.resize.crop') + '</option>'
+    +     '</select>'
+    +   '</div>'
     + '</div>';
 
   inkModalShow(t('bind.modal.title'), bodyHtml, [
     { label: t('albums.modal.cancel'), cls: 'ink-btn-secondary', onClick: inkModalCancel },
-    { label: t('albums.modal.ok'), cls: 'ink-btn-primary', onClick: async function() {
-      var sel = document.getElementById('bindDevice');
-      var opt = sel.options[sel.selectedIndex];
+    { label: t('albums.modal.ok'), cls: 'ink-btn-primary', disabled: true, onClick: async function() {
+      var dev = devices.find(function(d) { return d.deviceId === _bindPickedDeviceId; });
+      if (!dev) return;
+
       var time = document.getElementById('bindTime').value;
       var resize = document.getElementById('bindResize').value;
 
@@ -826,13 +858,13 @@ async function addBinding(albumId) {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
-          name: album.name + ' → ' + opt.dataset.name,
+          name: album.name + ' → ' + (dev.deviceName || dev.deviceId),
           account_id: window.INKJOY_ACCOUNT_ID,
-          device_id: sel.value,
-          device_name: opt.dataset.name,
-          device_width: parseInt(opt.dataset.w) || null,
-          device_height: parseInt(opt.dataset.h) || null,
-          device_orientation: parseInt(opt.dataset.orient) || 0,
+          device_id: dev.deviceId,
+          device_name: dev.deviceName || dev.deviceId,
+          device_width: dev.resolution ? dev.resolution.width : null,
+          device_height: dev.resolution ? dev.resolution.height : null,
+          device_orientation: dev.orientation || 0,
           folder_path: folderPath,
           schedule_time: time,
           resize_mode: resize,
