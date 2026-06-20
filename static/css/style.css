@@ -785,35 +785,38 @@ body {
 .folder-browser-inline {
   border: 1px solid #e2e8f0; border-radius: .75rem;
   max-height: 320px; overflow-y: auto;
+  background: #f7f8fa;
 }
 .folder-breadcrumb {
-  padding: 8px 12px; background: #f8f9fa;
-  font-size: 13px; border-bottom: 1px solid #eee;
+  padding: 10px 16px; background: #fff;
+  font-size: 13px; border-bottom: 1px solid #e8ecf0;
 }
 .folder-bc-item { cursor: pointer; color: var(--ink); font-weight: 500; }
 .folder-bc-item:hover { text-decoration: underline; }
-.folder-list { padding: 8px; }
+.folder-bc-sep { color: #999; margin: 0 6px; font-size: 14px; }
+.folder-list { padding: 4px 6px; }
 .folder-item {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 12px; border-radius: .5rem; font-size: 14px;
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border-radius: .625rem; font-size: 14px;
 }
+.folder-item:hover { background: #eef3f0; }
 .folder-item-current {
-  background: #f0f7f4; border: 1.5px solid var(--ink-light);
-  margin-bottom: 4px;
+  background: #e8f5ee; border: 1px solid #c8e6d5;
+  margin-bottom: 2px;
 }
-.folder-item-sub { padding-left: 28px; }
+.folder-item-sub { padding-left: 32px; }
 .folder-item-label {
   flex: 1; cursor: pointer; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap;
 }
 .folder-item-label:hover { text-decoration: underline; color: var(--ink); }
-.folder-item-current .folder-item-label { font-weight: 600; }
-.folder-item-meta { font-size: 12px; color: #888; white-space: nowrap; }
+.folder-item-current .folder-item-label { font-weight: 600; color: var(--ink); }
+.folder-item-meta { font-size: 12px; color: #90a0a8; white-space: nowrap; }
 
 /* 勾选框 */
 .folder-check {
   width: 20px; height: 20px; flex-shrink: 0;
-  border: 2px solid #cbd5e1; border-radius: 4px;
+  border: 2px solid #c8d0d8; border-radius: 6px;
   cursor: pointer; position: relative;
   transition: border-color .15s, background .15s;
 }
@@ -823,8 +826,8 @@ body {
   font-size: 13px; font-weight: 700;
   color: transparent; transition: color .15s;
 }
-.folder-check:hover { border-color: #94a3b8; }
-.folder-check:hover::after { color: #94a3b8; }
+.folder-check:hover { border-color: #90a8a0; }
+.folder-check:hover::after { color: #90a8a0; }
 .folder-check.checked {
   background: var(--ink); border-color: var(--ink);
 }

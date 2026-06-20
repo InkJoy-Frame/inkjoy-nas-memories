@@ -494,20 +494,25 @@ function toggleFilterSystemDirs(checked) {
   picker.filterSystemDirs = checked;
 }
 
+function buildBreadcrumb(path, onClickFn) {
+  var parts = path ? path.split('/').filter(Boolean) : [];
+  var bc = '<span class="folder-bc-item" onclick="' + onClickFn + '(\'\')">' + t('albums.folder.root') + '</span>';
+  var built = '';
+
+  parts.forEach(function(p) {
+    built += (built ? '/' : '') + p;
+    bc += '<span class="folder-bc-sep">›</span><span class="folder-bc-item" onclick="' + onClickFn + '(\'' + built + '\')">' + esc(p) + '</span>';
+  });
+
+  return bc;
+}
+
 async function browseFolders(path) {
   const resp = await fetch('/api/browse?path=' + encodeURIComponent(path));
   const data = await resp.json();
   if (!data.success) return;
 
-  const parts = path ? path.split('/').filter(Boolean) : [];
-  let bc = '<span class="folder-bc-item" onclick="browseFolders(\'\')">' + t('albums.folder.root') + '</span>';
-  let built = '';
-  parts.forEach(p => {
-    built += (built ? '/' : '') + p;
-    const bp = built;
-    bc += ' / <span class="folder-bc-item" onclick="browseFolders(\'' + bp + '\')">' + esc(p) + '</span>';
-  });
-  document.getElementById('folderBreadcrumb').innerHTML = bc;
+  document.getElementById('folderBreadcrumb').innerHTML = buildBreadcrumb(path, 'browseFolders');
 
   const dirs = data.items.filter(i => i.type === 'dir');
   const imgCount = data.items.filter(i => i.type === 'image').length;
@@ -521,7 +526,7 @@ async function browseFolders(path) {
   html += '<div class="folder-item folder-item-current" onclick="toggleFolderSelection(\'' + esc(path) + '\')">'
     + '<span class="folder-check ' + ck(path) + '" data-path="' + esc(path) + '"></span>'
     + '<span class="folder-item-label">📂 ' + esc(curLabel) + '</span>'
-    + '<span class="folder-item-meta">' + (imgCount ? '📷 ' + imgCount : '') + '</span>'
+    + '<span class="folder-item-meta">' + (imgCount ? imgCount + ' ' + t('albums.folder.photos') : '') + '</span>'
     + '</div>';
 
   dirs.forEach(d => {
@@ -1259,19 +1264,10 @@ async function qpLoadFolder(path) {
   var resp = await fetch('/api/browse?path=' + encodeURIComponent(path)).then(function(r) { return r.json(); });
   if (!resp.success) return;
 
-  var parts = path ? path.split('/').filter(Boolean) : [];
-  var bcHtml = '<span style="cursor:pointer;color:var(--ink);font-weight:500" onclick="qpLoadFolder(\'\')">' + t('albums.folder.root') + '</span>';
-  var built = '';
-  parts.forEach(function(p) {
-    built += (built ? '/' : '') + p;
-    var bp = built;
-    bcHtml += ' / <span style="cursor:pointer;color:var(--ink);font-weight:500" onclick="qpLoadFolder(\'' + bp + '\')">' + esc(p) + '</span>';
-  });
-
   var dirs = resp.items.filter(function(i) { return i.type === 'dir'; });
   var images = resp.items.filter(function(i) { return i.type === 'image'; });
 
-  var html = '<div style="padding:6px 8px;background:#f8f9fa;border-radius:4px;font-size:13px;margin-bottom:8px">' + bcHtml + '</div>';
+  var html = '<nav class="folder-breadcrumb" style="border-radius:4px;margin-bottom:8px">' + buildBreadcrumb(path, 'qpLoadFolder') + '</nav>';
 
   dirs.forEach(function(d) {
     html += '<div style="padding:6px 8px;cursor:pointer;font-size:13px" onclick="qpLoadFolder(\'' + d.path + '\')">📁 ' + esc(d.name) + '</div>';
@@ -1286,7 +1282,7 @@ async function qpLoadFolder(path) {
   }
 
   if (!dirs.length && !images.length) {
-    html += '<div style="text-align:center;color:#999;padding:20px">' + (getLang() === 'zh' ? '空文件夹' : 'Empty folder') + '</div>';
+    html += '<div style="text-align:center;color:#999;padding:20px">' + t('qp.folder.empty') + '</div>';
   }
 
   grid.innerHTML = html;
