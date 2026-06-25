@@ -12,7 +12,7 @@
   --bs-link-color:       var(--ink);
   --bs-link-hover-color: var(--ink-dark);
 
-  --surface: #f4f8f6;
+  --surface: #f5f7f6;
   --card-shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
   --card-hover:  0 4px 14px rgba(30,77,59,.18);
 }
@@ -46,6 +46,9 @@ a:hover { color: var(--ink-dark); }
 body {
   background: var(--surface);
   font-size: .9rem;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  color: #1e293b;
+  -webkit-font-smoothing: antialiased;
 }
 
 /* ── 登录页（独立样式，不依赖 Bootstrap）─────────────────────────────────── */
@@ -243,10 +246,10 @@ body {
 .navbar {
   display: flex;
   align-items: center;
-  height: 60px;
+  height: 56px;
   padding: 0 1.25rem;
   background: var(--ink);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12);
   position: sticky;
   top: 0;
   z-index: 100;
@@ -317,20 +320,20 @@ body {
 .page-content {
   max-width: 800px;
   margin: 0 auto;
-  padding: 1.25rem 1rem;
-  min-height: calc(100vh - 60px);
+  padding: 1.5rem 1rem;
+  min-height: calc(100vh - 56px);
 }
 
 /* ── 内容区块卡片 ──────────────────────────────────────────────────────── */
 .content-card {
   background: #fff;
-  border-radius: .75rem;
-  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  border-radius: .875rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06), 0 0 1px rgba(0,0,0,.08);
   margin-bottom: 1.25rem;
 }
 .content-card-header {
-  padding: .875rem 1rem;
-  border-bottom: 1px solid #eee;
+  padding: 1rem 1.125rem;
+  border-bottom: 1px solid #f0f2f1;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -338,42 +341,47 @@ body {
 .content-card-title {
   font-weight: 600;
   font-size: 15px;
-  color: var(--ink);
+  color: #1e293b;
+  letter-spacing: -0.01em;
 }
 .content-card-subtitle {
   font-size: 12px;
-  color: #999;
+  color: #94a3b8;
   margin-top: 2px;
 }
 .content-card-body { padding: .75rem 1rem; }
 
 /* ── 相册子卡片（含设备绑定） ──────────────────────────────────────────── */
 .album-item {
-  border: 1px solid #e8e8e8;
-  border-radius: .5rem;
+  border: 1px solid #e8ece9;
+  border-radius: .625rem;
   margin-bottom: .75rem;
   overflow: hidden;
+  transition: box-shadow .2s;
+}
+.album-item:hover {
+  box-shadow: 0 2px 12px rgba(30,77,59,.08);
 }
 .album-item-header {
-  padding: .625rem .875rem;
+  padding: .75rem 1rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #fafffe;
+  background: #fcfefa;
 }
 .album-item-info {
   display: flex;
   align-items: center;
-  gap: .625rem;
+  gap: .75rem;
   min-width: 0;
 }
 .album-item-thumb {
-  width: 44px;
-  height: 44px;
-  border-radius: 6px;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
   overflow: hidden;
   flex-shrink: 0;
-  background: #e8e8e8;
+  background: #e8ece9;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -384,32 +392,209 @@ body {
   object-fit: cover;
 }
 .album-item-name {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
+  color: #1e293b;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .album-item-meta {
-  font-size: 11px;
-  color: #999;
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 1px;
 }
-/* ── 设备绑定行 ────────────────────────────────────────────────────────── */
-.binding-list { padding: 0 .875rem .625rem; }
-.binding-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: .5rem .625rem;
-  margin-top: .375rem;
-  background: #f8faf9;
+.album-menu-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
   border-radius: 6px;
-  border-left: 3px solid #4caf50;
+  transition: all .15s;
+  line-height: 1;
 }
-.binding-row.disabled {
-  opacity: .5;
-  border-left-color: #ccc;
+.album-menu-btn:hover { background: #f0f4f2; color: #475569; }
+
+/* ── 设备分组 ────────────────────────────────────────────────────────────── */
+.binding-list { padding: .375rem .75rem .75rem; }
+
+.device-group {
+  margin-top: .5rem;
+  padding: .5rem .625rem;
+  background: #f7faf8;
+  border-radius: .5rem;
+  border: 1px solid #eef2ef;
 }
+
+.device-group-header {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  margin-bottom: .375rem;
+  padding-bottom: .375rem;
+  border-bottom: 1px solid #eef2ef;
+}
+
+.device-group-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+
+/* ── 时间槽行 ────────────────────────────────────────────────────────────── */
+
+.time-slot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .375rem .375rem;
+  border-radius: 5px;
+  margin-top: 2px;
+  transition: background .15s;
+}
+
+.time-slot:hover { background: rgba(30,77,59,.03); }
+
+.time-slot.disabled { opacity: .45; }
+
+.time-slot-info {
+  display: flex;
+  align-items: center;
+  gap: .375rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.time-value {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background .15s;
+  font-variant-numeric: tabular-nums;
+}
+
+.time-value:hover { background: var(--ink-light); }
+
+.time-sep { color: #cbd5e1; font-size: 12px; }
+
+.resize-value {
+  font-size: 12px;
+  color: #64748b;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all .15s;
+}
+
+.resize-value:hover { background: #e2e8f0; color: #334155; }
+
+.time-next {
+  font-size: 11px;
+  color: #34c759;
+  white-space: nowrap;
+}
+
+.time-slot-controls {
+  display: flex;
+  align-items: center;
+  gap: .375rem;
+  flex-shrink: 0;
+}
+
+/* 状态小圆点 */
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-dot.ok { background: #34c759; }
+.status-dot.err { background: #ef4444; }
+.status-dot.none { background: #cbd5e1; }
+
+/* 推送一次按钮 */
+.time-push-btn {
+  background: none;
+  border: 1px solid #d4ddd8;
+  color: #475569;
+  cursor: pointer;
+  padding: 3px 10px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  transition: all .15s;
+  white-space: nowrap;
+}
+
+.time-push-btn:hover { border-color: var(--ink); color: var(--ink); }
+.time-push-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+/* 时间槽 ⋮ 菜单按钮 */
+.time-menu-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 1;
+  transition: all .15s;
+}
+
+.time-menu-btn:hover { background: #f0f4f2; color: #475569; }
+
+/* 内联时间编辑 */
+.inline-time-input {
+  padding: 2px 6px;
+  border: 1.5px solid var(--ink);
+  border-radius: 5px;
+  font-size: 13px;
+  outline: none;
+  width: 100px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 3px rgba(30,77,59,.1);
+}
+
+/* 迷你开关 */
+.toggle-switch.mini {
+  width: 32px;
+  height: 18px;
+  margin: 0;
+}
+
+.toggle-switch.mini .toggle-slider { border-radius: 9px; }
+
+.toggle-switch.mini .toggle-slider::before {
+  width: 14px;
+  height: 14px;
+  left: 2px;
+  top: 2px;
+}
+
+.toggle-switch.mini input:checked + .toggle-slider::before {
+  transform: translateX(14px);
+}
+
+/* 添加时间按钮 */
+.add-time-btn {
+  font-size: 11px;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: .25rem 0;
+  margin-top: .25rem;
+  text-align: center;
+  transition: color .15s;
+}
+
+.add-time-btn:hover { color: var(--ink); }
 .binding-thumb {
   flex-shrink: 0;
   border-radius: 3px;
@@ -417,36 +602,29 @@ body {
   background: #eee;
   box-shadow: 0 0 0 1.5px rgba(139,90,43,.25);
 }
-.binding-thumb.is-portrait { width: 24px; height: 32px; }
-.binding-thumb.is-landscape { width: 32px; height: 24px; }
+.binding-thumb.is-portrait { width: 22px; height: 30px; }
+.binding-thumb.is-landscape { width: 30px; height: 22px; }
 .binding-thumb img { width: 100%; height: 100%; object-fit: cover; }
-.binding-info { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.binding-info-text { min-width: 0; }
-.binding-device { font-size: 12px; font-weight: 500; }
-.binding-detail { font-size: 11px; color: #888; }
-.binding-status {
-  display: flex;
-  align-items: center;
-  gap: .5rem;
-  flex-shrink: 0;
-}
+
 .binding-empty {
   text-align: center;
-  padding: .5rem;
-  color: #bbb;
-  font-size: 11px;
+  padding: .75rem;
+  color: #94a3b8;
+  font-size: 12px;
 }
+
 .binding-add {
   text-align: center;
   padding: .5rem;
-  margin-top: .375rem;
+  margin-top: .5rem;
   font-size: 12px;
-  color: #999;
+  color: #94a3b8;
   cursor: pointer;
   border-radius: 6px;
-  border: 1px dashed #ddd;
+  border: 1px dashed #d4ddd8;
   transition: color .15s, border-color .15s;
 }
+
 .binding-add:hover { color: var(--ink); border-color: var(--ink); }
 
 /* ── 新建相册虚线入口 ──────────────────────────────────────────────────── */
@@ -485,13 +663,19 @@ body {
   color: #fff;
   border: none;
   padding: 6px 14px;
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
-  transition: background .15s;
+  transition: all .2s;
 }
-.btn-sm-primary:hover { background: var(--ink-dark); }
+.btn-sm-primary:hover {
+  background: var(--ink-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(30,77,59,.2);
+}
+.btn-sm-primary:active { transform: translateY(0); }
 
 /* ── 向导全页面 ──────────────────────────────────────────────────────── */
 .wizard-header {
@@ -672,15 +856,19 @@ body {
 /* ── 自动播放菜单 ──────────────────────────────────────────────────────── */
 .album-menu-dropdown {
   position: fixed; z-index: 1050;
-  background: #fff; border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0,0,0,.15);
-  min-width: 120px; overflow: hidden;
+  background: #fff; border-radius: 10px;
+  box-shadow: 0 4px 24px rgba(0,0,0,.12), 0 0 1px rgba(0,0,0,.1);
+  min-width: 140px; overflow: hidden;
+  padding: 4px 0;
 }
 .album-menu-dropdown button {
   display: block; width: 100%; border: none; background: none;
-  text-align: left; padding: 8px 16px; font-size: 14px; cursor: pointer;
+  text-align: left; padding: 8px 16px; font-size: 13px; cursor: pointer;
+  color: #334155; transition: background .1s;
 }
 .album-menu-dropdown button:hover { background: #f0f7f4; }
+.album-menu-dropdown button.text-danger { color: #dc3545; }
+.album-menu-dropdown button.text-danger:hover { background: #fef2f2; }
 
 .photo-grid {
   display: grid;
@@ -712,7 +900,8 @@ body {
 /* 自定义 Modal（对齐 webtool） */
 .ink-modal-overlay {
   position: fixed; inset: 0; z-index: 1000;
-  background: rgba(0,0,0,.45);
+  background: rgba(15,23,42,.35);
+  backdrop-filter: blur(4px);
   display: flex; align-items: center; justify-content: center;
   padding: 1rem;
 }
@@ -721,7 +910,7 @@ body {
   padding: 2rem; width: 100%; max-width: 520px;
   max-height: calc(100vh - 2rem);
   display: flex; flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0,0,0,.2);
+  box-shadow: 0 24px 64px rgba(0,0,0,.16), 0 0 1px rgba(0,0,0,.1);
 }
 .ink-modal-title {
   font-size: 1.1rem; font-weight: 700; color: #1e293b;
@@ -941,7 +1130,8 @@ body {
 /* Quick Push Modal */
 .qp-modal-overlay {
   position: fixed; inset: 0; z-index: 900;
-  background: rgba(0,0,0,.45);
+  background: rgba(15,23,42,.35);
+  backdrop-filter: blur(4px);
   display: flex; align-items: center; justify-content: center;
   padding: 1rem;
 }
@@ -1058,6 +1248,31 @@ body.qp-modal-open { overflow: hidden; }
 .folder-option-help:hover::before,
 .folder-option-help:hover::after { opacity: 1; }
 
+
+/* ── Toast 提示 ─────────────────────────────────────────────────────────── */
+.ink-toast {
+  position: fixed;
+  top: 72px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-8px);
+  background: #1e293b;
+  color: #fff;
+  padding: .625rem 1.25rem;
+  border-radius: .625rem;
+  font-size: 13px;
+  z-index: 2000;
+  box-shadow: 0 8px 24px rgba(0,0,0,.18);
+  opacity: 0;
+  transition: opacity .25s, transform .25s;
+  max-width: 400px;
+  text-align: center;
+  pointer-events: none;
+}
+.ink-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.ink-toast.error { background: #dc3545; }
 
 /* ── 工具类 ──────────────────────────────────────────────────────────────── */
 .opacity-50 { opacity: .5 !important; }

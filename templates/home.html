@@ -170,6 +170,44 @@ let schedulerJobsCache = {};
 // ── 工具函数 ─────────────────────────────────────────────────────────────────
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
+function inkToast(msg, isError) {
+  var existing = document.querySelector('.ink-toast');
+  if (existing) existing.remove();
+
+  var el = document.createElement('div');
+  el.className = 'ink-toast' + (isError ? ' error' : '');
+  el.textContent = msg;
+  document.body.appendChild(el);
+
+  requestAnimationFrame(function() { el.classList.add('show'); });
+  setTimeout(function() { el.classList.remove('show'); setTimeout(function() { el.remove(); }, 300); }, 3000);
+}
+
+function albumFolderPath(album) {
+  try {
+    var folders = JSON.parse(album.selected_folders || '[]');
+    if (folders.length) return folders[0];
+  } catch(e) {}
+  return album.folder_path;
+}
+
+function buildSchedulePayload(album, dev, time, resize) {
+  return {
+    name: album.name + ' → ' + (dev.deviceName || dev.deviceId),
+    account_id: window.INKJOY_ACCOUNT_ID,
+    device_id: dev.deviceId,
+    device_name: dev.deviceName || dev.deviceId,
+    device_width: dev.resolution ? dev.resolution.width : null,
+    device_height: dev.resolution ? dev.resolution.height : null,
+    device_orientation: dev.orientation || 0,
+    folder_path: albumFolderPath(album),
+    schedule_time: time,
+    resize_mode: resize,
+    enabled: true,
+    nas_album_id: album.id,
+  };
+}
+
 function albumSourceLabel(album) {
   try {
     var folders = JSON.parse(album.selected_folders || '[]');
@@ -309,9 +347,19 @@ function renderAlbumCard(album) {
   let folderCount = 1;
   try { folderCount = JSON.parse(album.selected_folders || '[]').length || 1; } catch(e) {}
 
-  const bindingsHtml = album.schedules.length
-    ? album.schedules.map(s => renderBindingRow(s)).join('')
-    : `<div class="binding-empty">${t('bind.empty')}</div>`;
+  let bindingsHtml = '';
+
+  if (!album.schedules.length) {
+    bindingsHtml = `<div class="binding-empty">${t('bind.empty')}</div>`;
+  } else {
+    const groups = {};
+    const order = [];
+    album.schedules.forEach(s => {
+      if (!groups[s.device_id]) { groups[s.device_id] = []; order.push(s.device_id); }
+      groups[s.device_id].push(s);
+    });
+    bindingsHtml = order.map(did => renderDeviceGroup(album.id, did, groups[did])).join('');
+  }
 
   return `
     <div class="album-item">
@@ -323,7 +371,7 @@ function renderAlbumCard(album) {
             <div class="album-item-meta">${albumMetaText(album.imgCount ?? 0, folderCount)}</div>
           </div>
         </div>
-        <button style="background:none;border:none;color:#999;font-size:14px;cursor:pointer;padding:4px" onclick="event.stopPropagation();showAlbumMenu(event,${album.id},'${esc(album.name)}')" title="⋮">⋮</button>
+        <button class="album-menu-btn" onclick="event.stopPropagation();showAlbumMenu(event,${album.id},'${esc(album.name)}')" title="⋮">⋮</button>
       </div>
       <div class="binding-list">
         ${bindingsHtml}
@@ -346,41 +394,53 @@ function fmtNextRun(isoStr) {
   try { return new Date(isoStr).toLocaleString(); } catch(_) { return isoStr; }
 }
 
-function renderBindingRow(s) {
-  const jobKey = `schedule_${s.id}`;
-  const nextRun = s.enabled ? schedulerJobsCache[jobKey] : null;
-  const nextHtml = nextRun ? `<span style="color:#4caf50">${t('bind.next')} ${fmtNextRun(nextRun)}</span>` : '';
-
-  const statusBadge = s.last_status === 'success'
-    ? `<span class="badge bg-success" style="font-size:10px">${t('sched.badge.ok')}</span>`
-    : s.last_status === 'error'
-      ? `<span class="badge bg-danger" style="font-size:10px">${t('sched.badge.err')}</span>`
-      : `<span class="badge bg-secondary" style="font-size:10px">${t('sched.badge.never')}</span>`;
-
-  const dev = devicesCache.find(d => d.deviceId === s.device_id);
-  const thumb = dev && dev.lastPlayThumbnailUrl;
+function renderDeviceGroup(albumId, deviceId, schedules) {
+  const dev = devicesCache.find(d => d.deviceId === deviceId);
+  const s0 = schedules[0];
   const isLand = devIsLandscape(dev);
+  const thumb = dev && dev.lastPlayThumbnailUrl;
+
   const thumbHtml = thumb
     ? `<div class="binding-thumb ${isLand ? 'is-landscape' : 'is-portrait'}"><img src="${esc(thumb)}" alt=""></div>`
     : '';
 
+  const timeSlotsHtml = schedules.map(s => renderTimeSlot(s)).join('');
+
   return `
-    <div class="binding-row ${s.enabled ? '' : 'disabled'}">
-      <div class="binding-info">
+    <div class="device-group">
+      <div class="device-group-header">
         ${thumbHtml}
-        <div class="binding-info-text">
-          <div class="binding-device">${esc(s.device_name || s.device_id)}</div>
-          <div class="binding-detail">${t('bind.daily')} ${s.schedule_time} · ${resizeLabel(s.resize_mode)} ${nextHtml}</div>
-        </div>
+        <span class="device-group-name">${esc(s0.device_name || deviceId)}</span>
       </div>
-      <div class="binding-status">
-        <button onclick="runBinding(${s.id},this)" title="${t('sched.btn.run')}" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px">▶</button>
-        <button onclick="deleteBinding(${s.id},'${esc(s.device_name || s.device_id)}')" title="${t('sched.btn.delete')}" style="background:none;border:none;cursor:pointer;font-size:12px;padding:2px;color:#dc3545">✕</button>
-        ${statusBadge}
-        <label class="toggle-switch" style="margin:0">
+      ${timeSlotsHtml}
+      <div class="add-time-btn" onclick="addTimeSlot(${albumId},'${esc(deviceId)}')">${t('bind.addTime')}</div>
+    </div>`;
+}
+
+function renderTimeSlot(s) {
+  const jobKey = `schedule_${s.id}`;
+  const nextRun = s.enabled ? schedulerJobsCache[jobKey] : null;
+  const nextHtml = nextRun ? `<span class="time-next">${t('bind.next')} ${fmtNextRun(nextRun)}</span>` : '';
+
+  const errorDot = s.last_status === 'error'
+    ? `<span class="status-dot err" title="${t('sched.badge.err')}"></span>` : '';
+
+  return `
+    <div class="time-slot ${s.enabled ? '' : 'disabled'}" data-schedule-id="${s.id}">
+      <div class="time-slot-info">
+        <span class="time-value" data-time="${s.schedule_time}" onclick="startEditTime(${s.id})">${s.schedule_time}</span>
+        <span class="time-sep">·</span>
+        <span class="resize-value" onclick="toggleResizeMode(${s.id})" title="${t('bind.resize')}">${resizeLabel(s.resize_mode)}</span>
+        ${nextHtml}
+      </div>
+      <div class="time-slot-controls">
+        ${errorDot}
+        <button class="time-push-btn" onclick="runBinding(${s.id},this)">${t('sched.btn.pushOnce')}</button>
+        <label class="toggle-switch mini">
           <input type="checkbox" ${s.enabled ? 'checked' : ''} onchange="toggleBinding(${s.id},this.checked)">
           <span class="toggle-slider"></span>
         </label>
+        <button class="time-menu-btn" onclick="event.stopPropagation();showTimeSlotMenu(event,${s.id},'${esc(s.device_name || s.device_id)}')">⋮</button>
       </div>
     </div>`;
 }
@@ -508,14 +568,23 @@ function buildBreadcrumb(path, onClickFn) {
 }
 
 async function browseFolders(path) {
+  return _doBrowseFolders(path, 'folderBreadcrumb', 'folderList', 'browseFolders');
+}
+
+async function editBrowseFolders(path) {
+  return _doBrowseFolders(path, 'editFolderBc', 'editFolderList', 'editBrowseFolders');
+}
+
+async function _doBrowseFolders(path, bcId, listId, callbackName) {
   const resp = await fetch('/api/browse?path=' + encodeURIComponent(path));
   const data = await resp.json();
   if (!data.success) return;
 
-  document.getElementById('folderBreadcrumb').innerHTML = buildBreadcrumb(path, 'browseFolders');
+  document.getElementById(bcId).innerHTML = buildBreadcrumb(path, callbackName);
 
   const dirs = data.items.filter(i => i.type === 'dir');
   const imgCount = data.items.filter(i => i.type === 'image').length;
+  const parts = path ? path.split('/').filter(Boolean) : [];
   const curLabel = parts.length ? parts[parts.length - 1] : t('albums.folder.root');
   picker.currentViewPath = path;
   picker.visibleDirs = dirs;
@@ -532,16 +601,15 @@ async function browseFolders(path) {
   dirs.forEach(d => {
     html += '<div class="folder-item folder-item-sub">'
       + '<span class="folder-check ' + ck(d.path) + '" data-path="' + esc(d.path) + '" onclick="event.stopPropagation();toggleFolderSelection(\'' + esc(d.path) + '\')"></span>'
-      + '<span class="folder-item-label" onclick="browseFolders(\'' + d.path + '\')">📁 ' + esc(d.name) + '</span>'
+      + '<span class="folder-item-label" onclick="' + callbackName + '(\'' + d.path + '\')">📁 ' + esc(d.name) + '</span>'
       + '</div>';
   });
 
-  document.getElementById('folderList').innerHTML = html;
+  document.getElementById(listId).innerHTML = html;
 }
 
 // ── 设备加载（带 localStorage 缓存） ────────────────────────────────────────
 
-const DEVICE_CACHE_TTL = 5 * 60 * 1000;
 const DEVICE_CACHE_KEY = 'inkjoy_devices_' + (window.INKJOY_ACCOUNT_ID || 0);
 
 function saveDeviceCache(devices) {
@@ -747,7 +815,7 @@ async function wizardCreate() {
   }).then(function(r) { return r.json(); });
 
   if (!albumResp.success) {
-    alert(albumResp.error);
+    inkToast(albumResp.error, true);
     btn.disabled = false;
     btn.style.opacity = '';
     return;
@@ -756,7 +824,7 @@ async function wizardCreate() {
   if (pickedDevices.size > 0) {
     var time = document.getElementById('wizardTime').value;
     var resize = document.getElementById('wizardResize').value;
-    var folderPath = selectedFolders[0];
+    var createdAlbum = {id: albumResp.id, name: albumName, selected_folders: JSON.stringify(selectedFolders), folder_path: selectedFolders[0]};
 
     var devArr = [];
     pickedDevices.forEach(function(id) {
@@ -765,24 +833,10 @@ async function wizardCreate() {
     });
 
     for (var i = 0; i < devArr.length; i++) {
-      var dev = devArr[i];
       await fetch('/api/schedules', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          name: albumName + ' → ' + (dev.deviceName || dev.deviceId),
-          account_id: window.INKJOY_ACCOUNT_ID,
-          device_id: dev.deviceId,
-          device_name: dev.deviceName || dev.deviceId,
-          device_width: dev.resolution ? dev.resolution.width : null,
-          device_height: dev.resolution ? dev.resolution.height : null,
-          device_orientation: dev.orientation || 0,
-          folder_path: folderPath,
-          schedule_time: time,
-          resize_mode: resize,
-          enabled: true,
-          nas_album_id: albumResp.id,
-        }),
+        body: JSON.stringify(buildSchedulePayload(createdAlbum, devArr[i], time, resize)),
       });
     }
   }
@@ -811,19 +865,18 @@ async function addBinding(albumId) {
 
   var devices = await getDevices();
 
-  var boundDeviceIds = {};
-  album.schedules.forEach(function(s) { boundDeviceIds[s.device_id] = true; });
+  var boundDeviceCounts = {};
+  album.schedules.forEach(function(s) {
+    boundDeviceCounts[s.device_id] = (boundDeviceCounts[s.device_id] || 0) + 1;
+  });
 
   _bindPickedDeviceId = null;
 
   var cardsHtml = devices.map(function(dev) {
-    var isBound = !!boundDeviceIds[dev.deviceId];
-    var cls = 'device-card' + (isBound ? ' bound' : '');
-    var onclick = isBound ? '' : ' onclick="_bindSelectDevice(this,\'' + esc(dev.deviceId) + '\')"';
-    return '<div class="' + cls + '"' + onclick + '>'
-      + deviceCardHtml(dev)
-      + (isBound ? '<div class="bound-badge">' + t('bind.bound') + '</div>' : '')
-      + '</div>';
+    var count = boundDeviceCounts[dev.deviceId] || 0;
+    var countBadge = count > 0 ? '<div class="bound-badge">' + count + ' ' + t('bind.times') + '</div>' : '';
+    return '<div class="device-card" onclick="_bindSelectDevice(this,\'' + esc(dev.deviceId) + '\')">'
+      + deviceCardHtml(dev) + countBadge + '</div>';
   }).join('');
 
   var bodyHtml = ''
@@ -850,37 +903,15 @@ async function addBinding(albumId) {
       var dev = devices.find(function(d) { return d.deviceId === _bindPickedDeviceId; });
       if (!dev) return;
 
-      var time = document.getElementById('bindTime').value;
-      var resize = document.getElementById('bindResize').value;
-
-      var folderPath = album.folder_path;
-      try {
-        var folders = JSON.parse(album.selected_folders || '[]');
-        if (folders.length) folderPath = folders[0];
-      } catch(e) {}
-
       var resp = await fetch('/api/schedules', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          name: album.name + ' → ' + (dev.deviceName || dev.deviceId),
-          account_id: window.INKJOY_ACCOUNT_ID,
-          device_id: dev.deviceId,
-          device_name: dev.deviceName || dev.deviceId,
-          device_width: dev.resolution ? dev.resolution.width : null,
-          device_height: dev.resolution ? dev.resolution.height : null,
-          device_orientation: dev.orientation || 0,
-          folder_path: folderPath,
-          schedule_time: time,
-          resize_mode: resize,
-          enabled: true,
-          nas_album_id: albumId,
-        }),
+        body: JSON.stringify(buildSchedulePayload(album, dev, document.getElementById('bindTime').value, document.getElementById('bindResize').value)),
       }).then(function(r) { return r.json(); });
 
       inkModalHide();
       if (resp.success) loadAlbums();
-      else alert(resp.error);
+      else inkToast(resp.error, true);
     }},
   ]);
 }
@@ -891,24 +922,25 @@ async function toggleBinding(scheduleId, enabled) {
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({enabled: enabled}),
   }).then(function(r) { return r.json(); });
-  if (!resp.success) alert(resp.error);
+  if (!resp.success) inkToast(resp.error, true);
   loadAlbums();
 }
 
 async function runBinding(scheduleId, btn) {
-  var origHtml = btn.innerHTML;
+  var origText = btn.textContent;
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+  btn.textContent = '…';
 
   var resp = await fetch('/api/schedules/' + scheduleId + '/run', {method: 'POST'}).then(function(r) { return r.json(); });
 
   if (resp.success) {
-    btn.innerHTML = '✓';
+    btn.textContent = '✓';
     btn.style.color = '#4caf50';
-    setTimeout(function() { btn.innerHTML = origHtml; btn.disabled = false; btn.style.color = ''; loadAlbums(); }, 2000);
+    btn.style.borderColor = '#4caf50';
+    setTimeout(function() { btn.textContent = origText; btn.disabled = false; btn.style.color = ''; btn.style.borderColor = ''; loadAlbums(); }, 2000);
   } else {
-    alert(resp.error || 'Failed');
-    btn.innerHTML = origHtml;
+    inkToast(resp.error || 'Failed', true);
+    btn.textContent = origText;
     btn.disabled = false;
     loadAlbums();
   }
@@ -923,20 +955,116 @@ async function deleteBinding(scheduleId, deviceName) {
 
   var resp = await fetch('/api/schedules/' + scheduleId, {method: 'DELETE'}).then(function(r) { return r.json(); });
   if (resp.success) loadAlbums();
-  else alert(resp.error);
+  else inkToast(resp.error, true);
 }
 
-// ── 自动播放菜单 ────────────────────────────────────────────────────────────
+// ── 内联编辑：时间 / 填充方式 ────────────────────────────────────────────────
 
-function showAlbumMenu(event, albumId, albumName) {
+function findScheduleById(scheduleId) {
+  for (var a of albumsData) {
+    for (var s of a.schedules) {
+      if (s.id === scheduleId) return s;
+    }
+  }
+  return null;
+}
+
+function startEditTime(scheduleId) {
+  var el = document.querySelector('[data-schedule-id="' + scheduleId + '"] .time-value');
+  if (!el) return;
+
+  var currentTime = el.dataset.time;
+  el.outerHTML = '<input type="time" class="inline-time-input" value="' + currentTime + '" '
+    + 'onchange="saveScheduleTime(' + scheduleId + ',this.value)" '
+    + 'onkeydown="if(event.key===\'Escape\')loadAlbums()" '
+    + 'onblur="this.onblur=null;saveScheduleTime(' + scheduleId + ',this.value)">';
+
+  var input = document.querySelector('[data-schedule-id="' + scheduleId + '"] .inline-time-input');
+  if (input) input.focus();
+}
+
+async function saveScheduleTime(scheduleId, newTime) {
+  var s = findScheduleById(scheduleId);
+  if (!s || s.schedule_time === newTime) { loadAlbums(); return; }
+
+  var resp = await fetch('/api/schedules/' + scheduleId, {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({schedule_time: newTime}),
+  }).then(function(r) { return r.json(); });
+
+  if (!resp.success) inkToast(resp.error, true);
+  loadAlbums();
+}
+
+async function toggleResizeMode(scheduleId) {
+  var s = findScheduleById(scheduleId);
+  if (!s) return;
+
+  var newMode = s.resize_mode === 'blur' ? 'crop' : 'blur';
+  var resp = await fetch('/api/schedules/' + scheduleId, {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({resize_mode: newMode}),
+  }).then(function(r) { return r.json(); });
+
+  if (!resp.success) inkToast(resp.error, true);
+  loadAlbums();
+}
+
+async function addTimeSlot(albumId, deviceId) {
+  var album = albumsData.find(function(a) { return a.id === albumId; });
+  if (!album) return;
+
+  var existingSched = album.schedules.find(function(s) { return s.device_id === deviceId; });
+  if (!existingSched) return;
+
+  var bodyHtml = ''
+    + '<div style="display:flex;gap:1rem;flex-wrap:wrap">'
+    +   '<div style="flex:1;min-width:120px">'
+    +     '<div style="font-size:13px;font-weight:600;color:#475569;margin-bottom:.375rem">' + t('bind.time') + '</div>'
+    +     '<input type="time" id="addTimeInput" class="ink-modal-input" style="margin-top:0" value="08:00">'
+    +   '</div>'
+    +   '<div style="flex:1;min-width:120px">'
+    +     '<div style="font-size:13px;font-weight:600;color:#475569;margin-bottom:.375rem">' + t('bind.resize') + '</div>'
+    +     '<select id="addTimeResize" class="ink-modal-input" style="margin-top:0">'
+    +       '<option value="blur">' + t('sched.resize.blur') + '</option>'
+    +       '<option value="crop">' + t('sched.resize.crop') + '</option>'
+    +     '</select>'
+    +   '</div>'
+    + '</div>';
+
+  inkModalShow(t('bind.addTime.title'), bodyHtml, [
+    { label: t('albums.modal.cancel'), cls: 'ink-btn-secondary', onClick: inkModalCancel },
+    { label: t('albums.modal.ok'), cls: 'ink-btn-primary', onClick: async function() {
+      var time = document.getElementById('addTimeInput').value;
+      var resize = document.getElementById('addTimeResize').value;
+
+      var devProxy = {deviceId: deviceId, deviceName: existingSched.device_name, resolution: {width: existingSched.device_width, height: existingSched.device_height}, orientation: existingSched.device_orientation || 0};
+
+      var resp = await fetch('/api/schedules', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(buildSchedulePayload(album, devProxy, time, resize)),
+      }).then(function(r) { return r.json(); });
+
+      inkModalHide();
+
+      if (resp.success) loadAlbums();
+      else inkToast(resp.error, true);
+    }},
+  ]);
+}
+
+// ── 时间槽菜单 ──────────────────────────────────────────────────────────────
+
+function _showDropdownMenu(event, html) {
   var existing = document.querySelector('.album-menu-dropdown');
   if (existing) existing.remove();
 
   var menu = document.createElement('div');
   menu.className = 'album-menu-dropdown';
-  menu.innerHTML = ''
-    + '<button onclick="renameAlbum(' + albumId + ',\'' + esc(albumName) + '\')">' + t('albums.menu.rename') + '</button>'
-    + '<button class="text-danger" onclick="deleteAlbum(' + albumId + ',\'' + esc(albumName) + '\')">' + t('albums.menu.delete') + '</button>';
+  menu.innerHTML = html;
 
   document.body.appendChild(menu);
   var rect = event.target.getBoundingClientRect();
@@ -949,6 +1077,91 @@ function showAlbumMenu(event, albumId, albumName) {
       document.removeEventListener('click', handler);
     }, {once: true});
   }, 0);
+}
+
+function showTimeSlotMenu(event, scheduleId, deviceName) {
+  _showDropdownMenu(event,
+    '<button class="text-danger" onclick="deleteBinding(' + scheduleId + ',\'' + esc(deviceName) + '\')">' + t('sched.btn.delete') + '</button>'
+  );
+}
+
+// ── 编辑相册（名称 + 文件夹） ───────────────────────────────────────────────
+
+async function editAlbum(albumId) {
+  var dropdown = document.querySelector('.album-menu-dropdown');
+  if (dropdown) dropdown.remove();
+
+  var album = albumsData.find(function(a) { return a.id === albumId; });
+  if (!album) return;
+
+  picker.selected = new Set();
+  try {
+    var folders = JSON.parse(album.selected_folders || '[]');
+    folders.forEach(function(f) { picker.selected.add(f); });
+  } catch(e) {}
+
+  picker.filterSystemDirs = !!album.filter_system_dirs;
+  picker.includeSubfolders = true;
+  picker.visibleDirs = [];
+  picker.currentViewPath = '';
+
+  var bodyHtml = ''
+    + '<div style="margin-bottom:1rem">'
+    +   '<div style="font-size:13px;font-weight:600;color:#475569;margin-bottom:.375rem">' + t('wizard.step.name').replace(/Step \d+ · |第 \d+ 步 · /g, '') + '</div>'
+    +   '<input type="text" id="editAlbumName" class="ink-modal-input" style="margin-top:0" value="' + esc(album.name) + '" maxlength="50">'
+    + '</div>'
+    + '<div>'
+    +   '<div style="font-size:13px;font-weight:600;color:#475569;margin-bottom:.375rem">' + t('wizard.step.folders').replace(/Step \d+ · |第 \d+ 步 · /g, '') + '</div>'
+    +   '<div class="folder-browser-inline" style="max-height:280px">'
+    +     '<nav class="folder-breadcrumb" id="editFolderBc"></nav>'
+    +     '<div class="folder-list" id="editFolderList"></div>'
+    +   '</div>'
+    +   '<div class="folder-options" style="margin-top:8px">'
+    +     '<label class="folder-option">'
+    +       '<span>' + t('albums.opt.filter_sys') + '</span>'
+    +       '<span class="toggle-switch"><input type="checkbox" id="editOptFilterSys" ' + (album.filter_system_dirs ? 'checked' : '') + ' onchange="picker.filterSystemDirs=this.checked"><span class="toggle-slider"></span></span>'
+    +     '</label>'
+    +   '</div>'
+    + '</div>';
+
+  var box = document.querySelector('.ink-modal-box');
+  if (box) box.style.maxWidth = '600px';
+
+  inkModalShow(t('albums.menu.edit'), bodyHtml, [
+    { label: t('albums.modal.cancel'), cls: 'ink-btn-secondary', onClick: inkModalCancel },
+    { label: t('albums.modal.ok'), cls: 'ink-btn-primary', onClick: async function() {
+      var name = document.getElementById('editAlbumName').value.trim();
+      var selectedFolders = Array.from(picker.selected);
+      if (!name || !selectedFolders.length) return;
+
+      var resp = await fetch('/api/nas-albums/' + albumId, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          name: name,
+          selected_folders: selectedFolders,
+          filter_system_dirs: picker.filterSystemDirs,
+        }),
+      }).then(function(r) { return r.json(); });
+
+      inkModalHide();
+
+      if (resp.success) loadAlbums();
+      else inkToast(resp.error, true);
+    }},
+  ]);
+
+  await editBrowseFolders('');
+}
+
+// ── 自动播放菜单 ────────────────────────────────────────────────────────────
+
+function showAlbumMenu(event, albumId, albumName) {
+  _showDropdownMenu(event, ''
+    + '<button onclick="renameAlbum(' + albumId + ',\'' + esc(albumName) + '\')">' + t('albums.menu.rename') + '</button>'
+    + '<button onclick="editAlbum(' + albumId + ')">' + t('albums.menu.edit') + '</button>'
+    + '<button class="text-danger" onclick="deleteAlbum(' + albumId + ',\'' + esc(albumName) + '\')">' + t('albums.menu.delete') + '</button>'
+  );
 }
 
 async function renameAlbum(albumId, oldName) {
@@ -964,7 +1177,7 @@ async function renameAlbum(albumId, oldName) {
     body: JSON.stringify({name: name.trim()}),
   }).then(function(r) { return r.json(); });
   if (resp.success) loadAlbums();
-  else alert(resp.error);
+  else inkToast(resp.error, true);
 }
 
 async function deleteAlbum(albumId, albumName) {
@@ -979,7 +1192,7 @@ async function deleteAlbum(albumId, albumName) {
 
   var resp = await fetch('/api/nas-albums/' + albumId, {method: 'DELETE'}).then(function(r) { return r.json(); });
   if (resp.success) loadAlbums();
-  else alert(resp.error);
+  else inkToast(resp.error, true);
 }
 
 // ── 快速推送（内联 + Cropper.js 预览） ──────────────────────────────────────

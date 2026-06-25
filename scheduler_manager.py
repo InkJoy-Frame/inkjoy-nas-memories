@@ -233,12 +233,10 @@ def execute_schedule(schedule_id):
             raise Exception(f'文件夹（含子文件夹）中没有图片: {folder}')
         logger.info(f'[schedule:{schedule_id}] selected: {image_path}')
 
+        img = ensure_rgb(open_image(image_path))
         device_width = schedule.get('device_width')
         device_height = schedule.get('device_height')
         resize_mode = schedule.get('resize_mode', 'crop')
-
-        img = ensure_rgb(open_image(image_path))
-
         proc_w, proc_h, orient = _processing_size(device_width, device_height, device_orientation)
 
         if proc_w and proc_h:

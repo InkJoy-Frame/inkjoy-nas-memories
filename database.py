@@ -193,47 +193,28 @@ def create_schedule(data):
 
 def update_schedule(schedule_id, data, account_id=None):
     conn = get_db()
-    if account_id is None:
-        cur = conn.execute(
-            '''UPDATE schedules SET name=?, account_id=?, device_id=?, device_name=?,
-               device_width=?, device_height=?, folder_path=?, schedule_time=?, resize_mode=?
-               WHERE id=?''',
-            (
-                data['name'], data['account_id'], data['device_id'],
-                data.get('device_name'), data.get('device_width'), data.get('device_height'),
-                data['folder_path'], data['schedule_time'],
-                data.get('resize_mode', 'crop'), schedule_id,
-            ),
-        )
-    else:
-        cur = conn.execute(
-            '''UPDATE schedules SET name=?, account_id=?, device_id=?, device_name=?,
-               device_width=?, device_height=?, folder_path=?, schedule_time=?, resize_mode=?
-               WHERE id=? AND account_id=?''',
-            (
-                data['name'], data['account_id'], data['device_id'],
-                data.get('device_name'), data.get('device_width'), data.get('device_height'),
-                data['folder_path'], data['schedule_time'],
-                data.get('resize_mode', 'crop'), schedule_id, account_id,
-            ),
-        )
-    conn.commit()
-    conn.close()
-    return cur.rowcount > 0
+    updatable = ('name', 'device_id', 'device_name', 'device_width', 'device_height',
+                 'device_orientation', 'folder_path', 'schedule_time', 'resize_mode', 'enabled')
+    sets = []
+    params = []
 
+    for field in updatable:
+        if field in data:
+            sets.append(f'{field} = ?')
+            params.append(data[field])
 
-def toggle_schedule(schedule_id, enabled, account_id=None):
-    conn = get_db()
-    if account_id is None:
-        cur = conn.execute(
-            'UPDATE schedules SET enabled=? WHERE id=?',
-            (1 if enabled else 0, schedule_id),
-        )
-    else:
-        cur = conn.execute(
-            'UPDATE schedules SET enabled=? WHERE id=? AND account_id=?',
-            (1 if enabled else 0, schedule_id, account_id),
-        )
+    if not sets:
+        conn.close()
+        return False
+
+    where = 'WHERE id = ?'
+    params.append(schedule_id)
+
+    if account_id is not None:
+        where += ' AND account_id = ?'
+        params.append(account_id)
+
+    cur = conn.execute(f'UPDATE schedules SET {", ".join(sets)} {where}', params)
     conn.commit()
     conn.close()
     return cur.rowcount > 0
@@ -289,15 +270,56 @@ def create_nas_album(name, folder_path, account_id,
     return album_id
 
 
-def rename_nas_album(album_id, name, account_id):
+def update_nas_album(album_id, account_id, **kwargs):
     conn = get_db()
+    sets = []
+    params = []
+
+    for field in ('name', 'folder_path', 'selected_folders', 'filter_system_dirs'):
+        if field in kwargs:
+            sets.append(f'{field} = ?')
+            params.append(kwargs[field])
+
+    if not sets:
+        conn.close()
+        return False
+
+    params.extend([album_id, account_id])
     cur = conn.execute(
-        'UPDATE nas_albums SET name = ? WHERE id = ? AND account_id = ?',
-        (name, album_id, account_id),
+        f'UPDATE nas_albums SET {", ".join(sets)} WHERE id = ? AND account_id = ?',
+        params,
     )
     conn.commit()
     conn.close()
     return cur.rowcount > 0
+
+
+def update_schedules_folder_by_album(album_id, folder_path):
+    conn = get_db()
+    conn.execute(
+        'UPDATE schedules SET folder_path = ? WHERE nas_album_id = ?',
+        (folder_path, album_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_device_schedule_times(device_id, account_id, exclude_id=None):
+    conn = get_db()
+
+    if exclude_id:
+        rows = conn.execute(
+            'SELECT id, schedule_time FROM schedules WHERE device_id = ? AND account_id = ? AND id != ?',
+            (device_id, account_id, exclude_id),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            'SELECT id, schedule_time FROM schedules WHERE device_id = ? AND account_id = ?',
+            (device_id, account_id),
+        ).fetchall()
+
+    conn.close()
+    return [dict(r) for r in rows]
 
 
 def delete_nas_album(album_id, account_id):

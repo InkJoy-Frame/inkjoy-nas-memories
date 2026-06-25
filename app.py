@@ -130,6 +130,29 @@ def _call_inkjoy(make_client_fn):
         raise
 
 
+def _time_to_minutes(time_str):
+    h, m = time_str.split(':')
+    return int(h) * 60 + int(m)
+
+
+def _validate_time_gap(device_id, account_id, new_time, exclude_id=None):
+    """同一设备上的推送间隔不得少于30分钟。"""
+    from database import get_device_schedule_times
+
+    existing = get_device_schedule_times(device_id, account_id, exclude_id)
+    new_min = _time_to_minutes(new_time)
+
+    for s in existing:
+        old_min = _time_to_minutes(s['schedule_time'])
+        gap = abs(new_min - old_min)
+        gap = min(gap, 1440 - gap)
+
+        if gap < 30:
+            return False, s['schedule_time']
+
+    return True, None
+
+
 def _require_account_id():
     """从 session 取 account_id，缺失时返回 (None, 401 response)。"""
     aid = session.get('account_id')
@@ -138,6 +161,17 @@ def _require_account_id():
         return aid, None
 
     return None, (jsonify({'success': False, 'error': '未登录'}), 401)
+
+
+def _validate_folder_paths(selected_folders):
+    """校验文件夹路径合法性，非法时返回错误 response。"""
+    for fp in selected_folders:
+        safe = os.path.normpath(os.path.join(IMAGES_DIR, fp))
+
+        if not safe.startswith(IMAGES_DIR_NORM):
+            return jsonify({'success': False, 'error': '非法路径'}), 400
+
+    return None
 
 
 def _get_album_photos(album):
@@ -316,11 +350,10 @@ def api_nas_albums_create():
     if not selected_folders:
         return jsonify({'success': False, 'error': '请至少选择一个文件夹'}), 400
 
-    for fp in selected_folders:
-        safe = os.path.normpath(os.path.join(IMAGES_DIR, fp))
+    path_err = _validate_folder_paths(selected_folders)
 
-        if not safe.startswith(IMAGES_DIR_NORM):
-            return jsonify({'success': False, 'error': '非法路径'}), 400
+    if path_err:
+        return path_err
 
     filter_system_dirs = 1 if data.get('filter_system_dirs', True) else 0
     folder_path = selected_folders[0]
@@ -335,20 +368,49 @@ def api_nas_albums_create():
 
 @app.route('/api/nas-albums/<int:album_id>', methods=['PUT'])
 @login_required
-def api_nas_albums_rename(album_id):
-    from database import rename_nas_album
+def api_nas_albums_update(album_id):
+    from database import update_nas_album, update_schedules_folder_by_album
     account_id, err = _require_account_id()
 
     if err:
         return err
 
-    data = request.get_json()
-    name = (data or {}).get('name', '').strip()
-    if not name:
-        return jsonify({'success': False, 'error': '名称不能为空'}), 400
+    data = request.get_json() or {}
+    kwargs = {}
 
-    if not rename_nas_album(album_id, name, account_id):
+    if 'name' in data:
+        name = data['name'].strip()
+
+        if not name:
+            return jsonify({'success': False, 'error': '名称不能为空'}), 400
+
+        kwargs['name'] = name
+
+    if 'selected_folders' in data:
+        selected_folders = data['selected_folders']
+
+        if not selected_folders:
+            return jsonify({'success': False, 'error': '请至少选择一个文件夹'}), 400
+
+        path_err = _validate_folder_paths(selected_folders)
+
+        if path_err:
+            return path_err
+
+        kwargs['selected_folders'] = json.dumps(selected_folders)
+        kwargs['folder_path'] = selected_folders[0]
+
+    if 'filter_system_dirs' in data:
+        kwargs['filter_system_dirs'] = 1 if data['filter_system_dirs'] else 0
+
+    if not kwargs:
+        return jsonify({'success': False, 'error': '无更新内容'}), 400
+
+    if not update_nas_album(album_id, account_id, **kwargs):
         return jsonify({'success': False, 'error': '相册不存在或无权限'}), 404
+
+    if 'folder_path' in kwargs:
+        update_schedules_folder_by_album(album_id, kwargs['folder_path'])
 
     return jsonify({'success': True})
 
@@ -536,6 +598,16 @@ def api_schedules_create():
     if not data:
         return jsonify({'success': False, 'error': '缺少请求数据'}), 400
     data['account_id'] = account_id
+
+    device_id = data.get('device_id')
+    schedule_time = data.get('schedule_time')
+
+    if device_id and schedule_time:
+        ok, conflict = _validate_time_gap(device_id, account_id, schedule_time)
+
+        if not ok:
+            return jsonify({'success': False, 'error': f'与已有时间点 {conflict} 间隔不足30分钟'}), 400
+
     try:
         sid = create_schedule(data)
         if data.get('enabled', True):
@@ -558,15 +630,30 @@ def api_schedules_update(sid):
     data = request.get_json()
     if not data:
         return jsonify({'success': False, 'error': '缺少请求数据'}), 400
-    data['account_id'] = account_id
+
+    if 'schedule_time' in data:
+        schedule = get_schedule(sid, account_id=account_id)
+
+        if not schedule:
+            return jsonify({'success': False, 'error': '计划不存在或无权限'}), 404
+
+        ok, conflict = _validate_time_gap(schedule['device_id'], account_id, data['schedule_time'], exclude_id=sid)
+
+        if not ok:
+            return jsonify({'success': False, 'error': f'与已有时间点 {conflict} 间隔不足30分钟'}), 400
+
     try:
         updated = update_schedule(sid, data, account_id=account_id)
+
         if not updated:
             return jsonify({'success': False, 'error': '计划不存在或无权限'}), 404
+
         schedule = get_schedule(sid)
         remove_job(sid)
+
         if schedule['enabled']:
             add_job(schedule)
+
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
@@ -594,22 +681,28 @@ def api_schedules_delete(sid):
 @app.route('/api/schedules/<int:sid>/toggle', methods=['POST'])
 @login_required
 def api_schedules_toggle(sid):
-    from database import toggle_schedule, get_schedule
+    from database import update_schedule, get_schedule
     from scheduler_manager import add_job, remove_job
     account_id, err = _require_account_id()
 
     if err:
         return err
+
     data = request.get_json() or {}
-    enabled = data.get('enabled', True)
+    enabled = 1 if data.get('enabled', True) else 0
+
     try:
-        updated = toggle_schedule(sid, enabled, account_id=account_id)
+        updated = update_schedule(sid, {'enabled': enabled}, account_id=account_id)
+
         if not updated:
             return jsonify({'success': False, 'error': '计划不存在或无权限'}), 404
+
         schedule = get_schedule(sid)
         remove_job(sid)
+
         if enabled:
             add_job(schedule)
+
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400

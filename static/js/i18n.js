@@ -32,6 +32,7 @@ const I18N = {
     /* ── Albums（共用） ────────────────────────────── */
     'albums.photos.empty':     'No photos in this album',
     'albums.menu.rename':      'Rename',
+    'albums.menu.edit':        'Edit Folders',
     'albums.menu.delete':      'Delete',
     'albums.menu.delete.confirm': 'Delete "{name}"?\nAssociated push schedules will also be removed.',
     'albums.modal.cancel':     'Cancel',
@@ -67,9 +68,12 @@ const I18N = {
 
     /* ── Binding ──────────────────────────────── */
     'bind.add':                '+ Add Frame',
+    'bind.addTime':            '+ Add time',
+    'bind.addTime.title':      'Add Push Time',
     'bind.modal.title':        'Add Frame',
     'bind.device':             'Target Frame',
     'bind.bound':              'Added',
+    'bind.times':              'times',
     'bind.time':               'Daily Push Time',
     'bind.resize':             'Fill Mode',
     'bind.empty':              'No frames added yet. Add one to start auto-pushing photos.',
@@ -94,6 +98,7 @@ const I18N = {
     'sched.resize.blur':       'Blur Fill (frosted glass padding)',
     'sched.resize.crop':       'Center Crop (fills screen)',
     'sched.btn.run':           'Run Now',
+    'sched.btn.pushOnce':      'Push once',
     'sched.btn.delete':        'Delete',
     'sched.badge.ok':          'Last: OK',
     'sched.badge.err':         'Last: Failed',
@@ -127,6 +132,7 @@ const I18N = {
     /* ── Albums ───────────────────────────────────── */
     'albums.photos.empty':     '此相册没有照片',
     'albums.menu.rename':      '重命名',
+    'albums.menu.edit':        '编辑文件夹',
     'albums.menu.delete':      '删除',
     'albums.menu.delete.confirm': '删除「{name}」？\n关联的定时推送也会一起删除。',
     'albums.modal.cancel':     '取消',
@@ -162,9 +168,12 @@ const I18N = {
 
     /* ── Binding ──────────────────────────────── */
     'bind.add':                '+ 添加相框',
+    'bind.addTime':            '+ 添加时间',
+    'bind.addTime.title':      '添加推送时间',
     'bind.modal.title':        '添加相框',
     'bind.device':             '目标相框',
     'bind.bound':              '已添加',
+    'bind.times':              '个时间点',
     'bind.time':               '每天推送时间',
     'bind.resize':             '图片填充方式',
     'bind.empty':              '尚未添加相框，添加后将自动每天推送照片',
@@ -189,6 +198,7 @@ const I18N = {
     'sched.resize.blur':       '适应填充（毛玻璃）',
     'sched.resize.crop':       '中心裁切（铺满屏幕）',
     'sched.btn.run':           '立即执行',
+    'sched.btn.pushOnce':      '推送一次',
     'sched.btn.delete':        '删除',
     'sched.badge.ok':          '上次成功',
     'sched.badge.err':         '上次失败',
