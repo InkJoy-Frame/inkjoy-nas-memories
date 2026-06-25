@@ -2,6 +2,8 @@ import os
 import random
 import logging
 import time
+import threading
+from collections import defaultdict
 from io import BytesIO
 from datetime import datetime
 
@@ -14,6 +16,9 @@ logger = logging.getLogger(__name__)
 
 _tz = 'Asia/Shanghai'
 scheduler = BackgroundScheduler(timezone=_tz)
+
+# 同一 email 的 schedule 串行执行，避免并发 login 互踢 token
+_email_locks = defaultdict(threading.Lock)
 
 _images_dir = '/images'
 _SYSTEM_EXCLUDED_DIRS = {
@@ -165,23 +170,30 @@ def execute_schedule(schedule_id):
     from api_client import InkJoyClient
 
     logger.info(f'[schedule:{schedule_id}] START execute at {datetime.now().isoformat()}')
+
+    schedule = get_schedule(schedule_id)
+    if not schedule:
+        logger.warning(f'[schedule:{schedule_id}] not found in DB, skip')
+        return
+    if not schedule['enabled']:
+        logger.warning(f'[schedule:{schedule_id}] disabled, skip')
+        return
+
+    account = get_account(schedule['account_id'])
+    if not account:
+        update_schedule_run_status(schedule_id, 'error', f'关联账号不存在 (account_id={schedule["account_id"]})')
+        logger.error(f'[schedule:{schedule_id}] FAILED: 关联账号不存在')
+        return
+
+    lock = _email_locks[account['email']]
+    if not lock.acquire(blocking=False):
+        logger.info(f'[schedule:{schedule_id}] waiting for {account["email"]} lock…')
+        lock.acquire()
+
     try:
-        schedule = get_schedule(schedule_id)
-        if not schedule:
-            logger.warning(f'[schedule:{schedule_id}] not found in DB, skip')
-            return
-        if not schedule['enabled']:
-            logger.warning(f'[schedule:{schedule_id}] disabled, skip')
-            return
-
-        account = get_account(schedule['account_id'])
-        if not account:
-            raise Exception(f'关联账号不存在 (account_id={schedule["account_id"]})')
-
         logger.info(f'[schedule:{schedule_id}] logging in as {account["email"]} → {account["server_url"]}')
         client = InkJoyClient(account['server_url'])
 
-        # 登录最多重试 3 次，每次间隔 5 秒，避免偶发网络超时导致任务失败
         login_data = None
         for _attempt in range(3):
             try:
@@ -195,6 +207,7 @@ def execute_schedule(schedule_id):
                     time.sleep(5)
                 else:
                     raise
+
         update_account_token(account['id'], login_data['token'])
         logger.info(f'[schedule:{schedule_id}] login OK')
 
@@ -257,3 +270,6 @@ def execute_schedule(schedule_id):
     except Exception as e:
         logger.error(f'[schedule:{schedule_id}] FAILED: {e}', exc_info=True)
         update_schedule_run_status(schedule_id, 'error', str(e))
+
+    finally:
+        lock.release()
