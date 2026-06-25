@@ -88,10 +88,10 @@ def get_db():
 def get_all_schedules(account_id=None):
     conn = get_db()
     if account_id is None:
-        rows = conn.execute('SELECT * FROM schedules ORDER BY created_at DESC').fetchall()
+        rows = conn.execute('SELECT * FROM schedules ORDER BY schedule_time ASC').fetchall()
     else:
         rows = conn.execute(
-            'SELECT * FROM schedules WHERE account_id = ? ORDER BY created_at DESC',
+            'SELECT * FROM schedules WHERE account_id = ? ORDER BY schedule_time ASC',
             (account_id,),
         ).fetchall()
     conn.close()
@@ -348,7 +348,7 @@ def update_schedule_run_status(schedule_id, status, error=None):
 def get_schedules_by_album(album_id):
     conn = get_db()
     rows = conn.execute(
-        'SELECT * FROM schedules WHERE nas_album_id = ? ORDER BY created_at DESC',
+        'SELECT * FROM schedules WHERE nas_album_id = ? ORDER BY schedule_time ASC',
         (album_id,),
     ).fetchall()
     conn.close()
