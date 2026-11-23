@@ -1,4 +1,4 @@
-/* InkJoy Manager — i18n module
+/* InkJoy Frame — i18n module
  * Usage:  t('key')          → translated string
  *         getLang()          → 'en' | 'zh'
  *         setLang('zh')      → persist + reload
@@ -10,16 +10,31 @@
 const I18N = {
   en: {
     /* ── Nav ──────────────────────────────────────── */
-    'nav.brand':     'InkJoy Manager',
+    'nav.brand':     'InkJoy Frame',
     'nav.manage':    'Manage',
     'nav.devices':   'Devices',
     'nav.albums':    'Albums',
     'nav.upload':    'Upload',
     'nav.schedules': 'Schedules',
+    'nav.support':   'Support',
+    'nav.legal':     'Legal',
+    'nav.terms':     'User Agreement',
+    'nav.privacy':   'Privacy Policy',
+    'nav.collected': 'Collected List',
+    'nav.shared':    'Shared List',
     'nav.logout':    'Sign Out',
+    'nav.home':      'Home',
+    'nav.server.global': 'Global',
+    'nav.server.china':  'China',
+    'nav.server.unknown': 'Unknown',
+    'common.loading': 'Loading...',
+    'common.failed':  'Failed',
 
     /* ── Login ────────────────────────────────────── */
     'login.tagline':     'Turn your NAS into a living photo stream for InkJoy Frame.',
+    'login.hero.title':  'Keep what matters present.',
+    'login.hero.subtitle': 'Always visible. Never distracting.',
+    'login.hero.kicker': 'InkJoy ePaper Frame',
     'login.email':       'Email',
     'login.email.ph':    'your@email.com',
     'login.pwd':         'Password',
@@ -28,6 +43,17 @@ const I18N = {
     'login.conflict':    'Account found on multiple servers — please select:',
     'login.err.net':     'Network error, please retry',
     'login.err.default': 'Login failed, check email/password',
+    'login.purchase.prompt': 'New to InkJoy?',
+    'login.purchase.cta': 'Shop frames',
+    'login.legal.agree': 'I have read and agree to the',
+    'login.legal.required': 'Please read and agree to the User Agreement and Privacy Policy before signing in.',
+    'login.legal.cancel': 'Cancel',
+    'login.legal.accept': 'Agree and sign in',
+    'login.legal.terms': 'User Agreement',
+    'login.legal.and': 'and',
+    'login.legal.privacy': 'Privacy Policy',
+    'login.legal.collected': 'Collected Personal Information List',
+    'login.legal.shared': 'Third-Party Sharing List',
 
     /* ── Albums（共用） ────────────────────────────── */
     'albums.photos.empty':     'No photos in this album',
@@ -114,16 +140,31 @@ const I18N = {
 
   zh: {
     /* ── Nav ──────────────────────────────────────── */
-    'nav.brand':     'InkJoy 管理器',
+    'nav.brand':     'InkJoy Frame',
     'nav.manage':    '管理',
     'nav.devices':   '设备',
     'nav.albums':    '相册管理',
     'nav.upload':    '上传',
     'nav.schedules': '定时任务',
+    'nav.support':   '技术支持',
+    'nav.legal':     '协议',
+    'nav.terms':     '用户协议',
+    'nav.privacy':   '隐私协议',
+    'nav.collected': '收集清单',
+    'nav.shared':    '共享清单',
     'nav.logout':    '退出',
+    'nav.home':      '首页',
+    'nav.server.global': '全球',
+    'nav.server.china':  '中国',
+    'nav.server.unknown': '未知',
+    'common.loading': '加载中...',
+    'common.failed':  '失败',
 
     /* ── Login ────────────────────────────────────── */
     'login.tagline':     '让 NAS 成为 InkJoy 相框上的流动相册。',
+    'login.hero.title':  '让珍视之物，常伴身边。',
+    'login.hero.subtitle': '始终可见，不打扰生活。',
+    'login.hero.kicker': 'InkJoy 墨水屏相框',
     'login.email':       '邮箱',
     'login.email.ph':    'your@email.com',
     'login.pwd':         '密码',
@@ -132,6 +173,17 @@ const I18N = {
     'login.conflict':    '账号在多个服务器上找到，请选择：',
     'login.err.net':     '网络错误，请重试',
     'login.err.default': '登录失败，请检查账号密码',
+    'login.purchase.prompt': '还没有 InkJoy 相框？',
+    'login.purchase.cta': '立即购买',
+    'login.legal.agree': '我已阅读并同意',
+    'login.legal.required': '请先阅读并同意《用户协议》和《隐私政策》后再登录。',
+    'login.legal.cancel': '取消',
+    'login.legal.accept': '同意并登录',
+    'login.legal.terms': '《用户协议》',
+    'login.legal.and': '和',
+    'login.legal.privacy': '《隐私政策》',
+    'login.legal.collected': '已收集个人信息清单',
+    'login.legal.shared': '第三方共享个人信息清单',
 
     /* ── Albums ───────────────────────────────────── */
     'albums.photos.empty':     '此相册没有照片',
@@ -229,11 +281,15 @@ window.t = (key, vars) => {
 
 window.setLang = (lang) => {
   localStorage.setItem('inkjoy_lang', lang);
+  document.cookie = 'inkjoy_lang=' + lang + ';path=/;max-age=31536000;SameSite=Lax';
   location.reload();
 };
 
 /* ── Apply to static DOM ──────────────────────────────── */
 function applyI18n() {
+  document.documentElement.lang = getLang() === 'zh' ? 'zh-CN' : 'en';
+  document.title = t('nav.brand');
+  document.cookie = 'inkjoy_lang=' + getLang() + ';path=/;max-age=31536000;SameSite=Lax';
   document.querySelectorAll('[data-i18n]').forEach(el => {
     const v = t(el.dataset.i18n);
     if (v) el.textContent = v;
@@ -249,6 +305,69 @@ function applyI18n() {
   // Sync lang toggle button label
   const btn = document.getElementById('langBtn');
   if (btn) btn.textContent = getLang() === 'en' ? '中文' : 'EN';
+
+  const policyLang = getLang() === 'zh' ? 'zh' : 'en';
+  const policyBase = policyLang === 'zh'
+    ? 'https://app.advisor.epaperframe.com'
+    : 'https://app.inkjoyframe.com';
+  document.querySelectorAll('[data-policy="terms"]').forEach(el => {
+    el.href = policyBase + '/statics/android/terms_of_service_' + policyLang + '.html';
+  });
+  applyPrivacyPolicyLinks();
 }
+
+/* Legal docs follow stored server environment + OS language, not the in-app language toggle. */
+function legalDocUrl(filePrefix) {
+  var env = 'CN';
+  try {
+    var stored = localStorage.getItem('server_environment');
+    if (stored) env = stored;
+    else if (window.INKJOY_SERVER_KEY === 'global') env = 'FR';
+  } catch (e) {
+    if (window.INKJOY_SERVER_KEY === 'global') env = 'FR';
+  }
+  env = String(env).toUpperCase();
+  var domain = (env === 'CN' || env === 'CN_TEST')
+    ? 'https://app.advisor.epaperframe.com'
+    : 'https://app.inkjoyframe.com';
+  var language = String(navigator.language || 'en').toLowerCase().split('-')[0];
+  var lang = language.indexOf('zh') === 0 ? 'zh' : 'en';
+  return domain + '/statics/android/' + filePrefix + '_' + lang + '.html';
+}
+
+function privacyPolicyUrl() {
+  return legalDocUrl('privacy_policy');
+}
+
+function userAgreementUrl() {
+  return legalDocUrl('terms_of_service');
+}
+
+function bindLegalLink(el, urlFor) {
+  el.href = urlFor();
+  if (el.dataset.privacyBound) return;
+  el.dataset.privacyBound = '1';
+  el.addEventListener('click', function () {
+    this.href = urlFor();
+  });
+}
+
+function applyPrivacyPolicyLinks() {
+  document.querySelectorAll('[data-policy="privacy"], [data-legal="privacy"]').forEach(function (el) {
+    bindLegalLink(el, privacyPolicyUrl);
+  });
+  document.querySelectorAll('[data-legal="terms"]').forEach(function (el) {
+    bindLegalLink(el, userAgreementUrl);
+  });
+}
+
+const _inkjoyOrigFetch = window.fetch.bind(window);
+window.fetch = function(input, init) {
+  init = init ? Object.assign({}, init) : {};
+  const headers = new Headers(init.headers || {});
+  headers.set('X-InkJoy-Lang', getLang());
+  init.headers = headers;
+  return _inkjoyOrigFetch(input, init);
+};
 
 document.addEventListener('DOMContentLoaded', applyI18n);

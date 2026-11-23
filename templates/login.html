@@ -3,21 +3,30 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>InkJoy Manager</title>
+  <title>InkJoy Frame</title>
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/logo-mark.png') }}">
   <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
   <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
+  <script>window.INKJOY_BOX_PK = {{ transport_pubkey | tojson }};</script>
+  <script src="{{ url_for('static', filename='js/nacl.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/secure-transport.js') }}"></script>
 </head>
 <body>
 
 <div id="login-page">
+  <div class="login-hero-copy">
+    <span class="login-hero-kicker" data-i18n="login.hero.kicker">InkJoy ePaper Frame</span>
+    <h1 data-i18n="login.hero.title">Keep what matters present.</h1>
+    <p data-i18n="login.hero.subtitle">Always visible. Never distracting.</p>
+  </div>
+
   <div class="login-card">
     <button class="login-lang-btn" id="langBtn"
             onclick="setLang(getLang()==='en'?'zh':'en')">中文</button>
 
     <div class="login-logo">
       <img src="{{ url_for('static', filename='images/logo-green.svg') }}"
-           alt="InkJoy" class="login-logo-svg">
+           alt="InkJoy Frame" class="login-logo-svg">
       <p data-i18n="login.tagline">Turn your NAS into a living photo stream for InkJoy Frame.</p>
     </div>
 
@@ -54,11 +63,46 @@
         <select id="serverConflictSelect"></select>
       </div>
 
+      <div class="login-legal">
+        <input type="checkbox" id="agreeTerms" name="agree" autocomplete="off">
+        <div class="login-legal-text">
+          <label for="agreeTerms" data-i18n="login.legal.agree">I have read and agree to the</label>
+          <a data-policy="terms" href="https://app.inkjoyframe.com/statics/android/terms_of_service_en.html"
+             target="_blank" rel="noopener noreferrer" data-i18n="login.legal.terms">User Agreement</a>
+          <span data-i18n="login.legal.and">and</span>
+          <a data-policy="privacy" href="https://app.advisor.epaperframe.com/statics/android/privacy_policy_zh.html"
+             target="_blank" rel="noopener noreferrer" data-i18n="login.legal.privacy">Privacy Policy</a>
+        </div>
+      </div>
+      <div class="login-lists">
+        <a href="{{ url_for('legal_collected') }}" target="_blank" rel="noopener noreferrer" data-i18n="login.legal.collected">Collected Personal Information List</a>
+        <a href="{{ url_for('legal_shared') }}" target="_blank" rel="noopener noreferrer" data-i18n="login.legal.shared">Third-Party Sharing List</a>
+      </div>
+
       <button type="submit" class="btn-login" id="loginBtn" disabled>
         <div class="spinner" id="loginSpinner"></div>
         <span id="loginBtnText" data-i18n="login.submit">Login</span>
       </button>
     </form>
+
+    <div class="login-purchase">
+      <span data-i18n="login.purchase.prompt">New to InkJoy?</span>
+      <a href="https://www.inkjoyframe.com/collections/all"
+         target="_blank" rel="noopener noreferrer">
+        <span data-i18n="login.purchase.cta">Shop frames</span>
+        <span aria-hidden="true">↗</span>
+      </a>
+    </div>
+  </div>
+</div>
+
+<div id="consentModal" class="login-consent-modal" hidden>
+  <div class="login-consent-dialog" role="dialog" aria-modal="true" aria-labelledby="consentModalText">
+    <p id="consentModalText" data-i18n="login.legal.required">Please read and agree to the User Agreement and Privacy Policy before signing in.</p>
+    <div class="login-consent-actions">
+      <button type="button" class="login-consent-cancel" id="consentCancel" data-i18n="login.legal.cancel">Cancel</button>
+      <button type="button" class="login-consent-accept" id="consentAccept" data-i18n="login.legal.accept">Agree and sign in</button>
+    </div>
   </div>
 </div>
 
@@ -71,6 +115,13 @@
   const alertBox = document.getElementById('loginAlert');
   const conflictGroup = document.getElementById('serverConflictGroup');
   const conflictSelect = document.getElementById('serverConflictSelect');
+  const agreeTerms = document.getElementById('agreeTerms');
+  const consentModal = document.getElementById('consentModal');
+  function clearAgreement() { agreeTerms.checked = false; }
+  clearAgreement();
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted) clearAgreement();
+  });
 
   let pendingConflict = null;
 
@@ -98,7 +149,7 @@
   /* ── 冲突 UI ── */
   function showConflict(servers) {
     conflictSelect.innerHTML = servers.map(s =>
-      '<option value="' + s.url + '">' + s.name + '</option>'
+      '<option value="' + s.url + '">' + t('nav.server.' + s.name) + '</option>'
     ).join('');
     conflictGroup.style.display = 'block';
     pendingConflict = servers;
@@ -124,15 +175,40 @@
     spinner.style.display = on ? 'block' : 'none';
   }
 
+  document.querySelectorAll('.login-legal a').forEach(link => {
+    link.addEventListener('click', (e) => e.stopPropagation());
+  });
+
+  function showConsentModal() {
+    consentModal.hidden = false;
+    document.getElementById('consentAccept').focus();
+  }
+
+  function hideConsentModal() {
+    consentModal.hidden = true;
+  }
+
+  document.getElementById('consentCancel').addEventListener('click', hideConsentModal);
+  consentModal.addEventListener('click', (e) => {
+    if (e.target === consentModal) hideConsentModal();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !consentModal.hidden) hideConsentModal();
+  });
+
   /* ── 登录提交 ── */
   document.getElementById('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (!agreeTerms.checked) {
+      showConsentModal();
+      return;
+    }
     clearAlert();
 
     const email = emailInput.value.trim();
     const password = passwordInput.value;
 
-    const body = { email, password };
+    const body = { email, password, agreed: true };
 
     if (pendingConflict) {
       body.server_url = conflictSelect.value;
@@ -149,6 +225,9 @@
       const data = await resp.json();
 
       if (data.success) {
+        if (data.server_environment) {
+          localStorage.setItem('server_environment', data.server_environment);
+        }
         window.location.href = '/';
         return;
       }
@@ -165,6 +244,12 @@
     }
 
     setLoading(false);
+  });
+
+  document.getElementById('consentAccept').addEventListener('click', () => {
+    agreeTerms.checked = true;
+    hideConsentModal();
+    document.getElementById('loginForm').requestSubmit();
   });
 })();
 </script>

@@ -54,24 +54,72 @@ body {
 /* ── 登录页（独立样式，不依赖 Bootstrap）─────────────────────────────────── */
 #login-page {
   min-height: 100vh;
+  position: relative;
+  isolation: isolate;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1rem;
-  background: linear-gradient(150deg, #2d5a4a 0%, #1a3d2e 55%, #2d5a4a 100%);
+  padding: clamp(2rem, 6vw, 6rem);
+  background: #d9d0c7 url("../images/login-hero.jpg") center / cover no-repeat;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   color: #1e293b;
+  overflow: hidden;
+}
+#login-page::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(18, 43, 33, .78) 0%, rgba(18, 43, 33, .35) 43%, rgba(18, 43, 33, .08) 68%),
+    linear-gradient(180deg, rgba(0, 0, 0, .08), rgba(0, 0, 0, .16));
 }
 #login-page *, #login-page *::before, #login-page *::after { box-sizing: border-box; }
 
+.login-hero-copy {
+  position: absolute;
+  left: clamp(2rem, 6vw, 6rem);
+  top: 50%;
+  width: min(28vw, 440px);
+  transform: translateY(-50%);
+  color: white;
+  text-shadow: 0 2px 24px rgba(0, 0, 0, .18);
+}
+.login-hero-kicker {
+  display: inline-block;
+  margin-bottom: 1.25rem;
+  font-size: .78rem;
+  font-weight: 700;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  opacity: .82;
+}
+.login-hero-copy h1 {
+  max-width: 520px;
+  margin: 0;
+  font-size: clamp(2.7rem, 5vw, 5.5rem);
+  font-weight: 500;
+  line-height: .98;
+  letter-spacing: -.055em;
+}
+.login-hero-copy p {
+  margin: 1.5rem 0 0;
+  font-size: clamp(1rem, 1.5vw, 1.3rem);
+  letter-spacing: .01em;
+  opacity: .82;
+}
+
 .login-card {
   position: relative;
-  background: white;
-  border-radius: 1.75rem;
+  background: rgba(255, 255, 255, .94);
+  border: 1px solid rgba(255, 255, 255, .7);
+  border-radius: 1.5rem;
   padding: 3rem 2.75rem 2.5rem;
   width: 100%;
-  max-width: 400px;
-  box-shadow: 0 32px 72px rgba(0,0,0,0.28);
+  max-width: 420px;
+  box-shadow: 0 28px 80px rgba(20, 35, 29, .26);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }
 
 /* Language toggle */
@@ -223,6 +271,134 @@ body {
 }
 .btn-login:disabled { opacity: 0.55; cursor: not-allowed; transform: none !important; }
 
+/* Purchase prompt */
+.login-purchase {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: .35rem;
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #e7ebe9;
+  color: #64748b;
+  font-size: .82rem;
+}
+.login-purchase a {
+  display: inline-flex;
+  align-items: center;
+  gap: .18rem;
+  color: var(--ink);
+  font-weight: 700;
+  text-decoration: none;
+}
+.login-purchase a:hover { color: var(--ink-dark); text-decoration: underline; }
+
+.login-legal {
+  display: flex;
+  align-items: flex-start;
+  gap: .5rem;
+  margin: .15rem 0 1rem;
+  color: #64748b;
+  font-size: .75rem;
+  line-height: 1.5;
+  text-align: left;
+}
+.login-legal input {
+  width: 1rem;
+  height: 1rem;
+  margin: .15rem 0 0;
+  flex-shrink: 0;
+  accent-color: var(--ink);
+}
+.login-legal-text { min-width: 0; }
+.login-legal label {
+  font-weight: 500;
+  cursor: pointer;
+}
+.login-legal a {
+  color: var(--ink);
+  font-weight: 700;
+  text-decoration: none;
+}
+.login-legal a:hover { text-decoration: underline; }
+.login-lists {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem .75rem;
+  margin: -.4rem 0 1rem;
+  font-size: .75rem;
+}
+.login-lists a { color: var(--ink); font-weight: 700; text-decoration: none; }
+.login-lists a:hover { text-decoration: underline; }
+
+.legal-body {
+  margin: 0;
+  background: var(--surface);
+  color: #1f2937;
+}
+.legal-wrap {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 3rem;
+}
+.legal-wrap h1 { font-size: 1.45rem; margin: 0 0 .5rem; color: var(--ink-dark); }
+.legal-wrap .legal-lead { color: #475569; line-height: 1.6; }
+.legal-nav { display: flex; flex-wrap: wrap; gap: .75rem; margin: 1rem 0 1.25rem; }
+.legal-nav a { color: var(--ink); font-weight: 700; }
+.legal-table-wrap { overflow-x: auto; background: #fff; border-radius: .75rem; box-shadow: var(--card-shadow); }
+.legal-wrap table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+.legal-wrap th, .legal-wrap td { padding: .75rem .85rem; border-bottom: 1px solid #e7ebe9; text-align: left; vertical-align: top; line-height: 1.5; }
+.legal-wrap th { background: #f3f7f5; color: var(--ink-dark); white-space: nowrap; }
+.legal-note { margin-top: 1rem; color: #475569; line-height: 1.6; }
+
+.login-consent-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background: rgba(21, 55, 41, .45);
+}
+.login-consent-modal[hidden] { display: none; }
+.login-consent-dialog {
+  width: min(100%, 360px);
+  background: #fff;
+  border-radius: 1rem;
+  padding: 1.35rem 1.25rem 1.15rem;
+  box-shadow: 0 18px 50px rgba(21, 55, 41, .28);
+}
+.login-consent-dialog p {
+  margin: 0;
+  color: #1f2937;
+  font-size: .92rem;
+  line-height: 1.6;
+}
+.login-consent-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: .6rem;
+  margin-top: 1.15rem;
+}
+.login-consent-actions button {
+  border: 0;
+  border-radius: .6rem;
+  padding: .55rem .9rem;
+  font-size: .85rem;
+  cursor: pointer;
+}
+.login-consent-cancel {
+  background: #eef2f0;
+  color: #334155;
+}
+.login-consent-accept {
+  background: var(--ink);
+  color: #fff;
+  font-weight: 700;
+}
+
 /* Spinner */
 #login-page .spinner {
   width: 16px;
@@ -236,7 +412,23 @@ body {
 }
 @keyframes login-spin { to { transform: rotate(360deg); } }
 
-/* Mobile */
+/* Tablet and mobile */
+@media (max-width: 1180px) {
+  .login-hero-copy { display: none; }
+}
+@media (max-width: 820px) {
+  #login-page {
+    display: flex;
+    justify-content: center;
+    padding: 1.25rem;
+    background-position: 62% center;
+  }
+  #login-page::before {
+    background: linear-gradient(180deg, rgba(18, 43, 33, .4), rgba(18, 43, 33, .62));
+  }
+  .login-hero-copy { display: none; }
+  .login-card { justify-self: auto; }
+}
 @media (max-width: 480px) {
   .login-card { padding: 2.25rem 1.75rem 2rem; border-radius: 1.25rem; }
   .login-logo-svg { height: 36px; }
@@ -246,8 +438,8 @@ body {
 .navbar {
   display: flex;
   align-items: center;
-  height: 56px;
-  padding: 0 1.25rem;
+  min-height: 56px;
+  padding: 0.35rem 1.25rem;
   background: var(--ink);
   box-shadow: 0 1px 4px rgba(0,0,0,0.12);
   position: sticky;
@@ -271,9 +463,34 @@ body {
 .navbar-right {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
   margin-left: auto;
 }
+.nav-menu { position: relative; }
+.nav-menu-panel {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  min-width: 240px;
+  padding: 0.35rem;
+  background: #fff;
+  border-radius: 0.75rem;
+  box-shadow: 0 12px 32px rgba(21, 55, 41, 0.18);
+  z-index: 200;
+}
+.nav-menu-panel[hidden] { display: none; }
+.nav-menu-panel a {
+  display: block;
+  padding: 0.55rem 0.75rem;
+  color: var(--ink-dark);
+  text-decoration: none;
+  border-radius: 0.45rem;
+  font-size: 0.88rem;
+  white-space: nowrap;
+}
+.nav-menu-panel a:hover { background: #f3f7f5; }
 .lang-btn {
   background: transparent;
   border: none;
@@ -293,7 +510,8 @@ body {
   padding: 0.25rem 0.75rem;
   border-radius: 1rem;
 }
-.btn-logout {
+.btn-logout,
+.btn-support {
   font-size: 0.8rem;
   color: rgba(255,255,255,0.6);
   background: transparent;
@@ -304,7 +522,8 @@ body {
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s;
 }
-.btn-logout:hover { color: white; border-color: rgba(255,255,255,0.5); }
+.btn-logout:hover,
+.btn-support:hover { color: white; border-color: rgba(255,255,255,0.5); }
 
 /* ── 导航栏居中 ────────────────────────────────────────────────────────── */
 .navbar-inner {
@@ -315,6 +534,10 @@ body {
   align-items: center;
 }
 .navbar-inner .navbar-right { margin-left: auto; }
+@media (max-width: 720px) {
+  .navbar-inner { flex-wrap: wrap; row-gap: 0.35rem; }
+  .navbar-right { flex-wrap: wrap; }
+}
 
 /* ── 单页主内容区 ──────────────────────────────────────────────────────── */
 .page-content {

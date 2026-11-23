@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}InkJoy NAS{% endblock %}
+{% block title %}InkJoy Frame{% endblock %}
 
 {% block head %}
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
@@ -192,11 +192,12 @@ function albumFolderPath(album) {
 }
 
 function buildSchedulePayload(album, dev, time, resize) {
+  var label = dev.deviceName || '';
   return {
-    name: album.name + ' → ' + (dev.deviceName || dev.deviceId),
+    name: label ? (album.name + ' → ' + label) : album.name,
     account_id: window.INKJOY_ACCOUNT_ID,
     device_id: dev.deviceId,
-    device_name: dev.deviceName || dev.deviceId,
+    device_name: label,
     device_width: dev.resolution ? dev.resolution.width : null,
     device_height: dev.resolution ? dev.resolution.height : null,
     device_orientation: dev.orientation || 0,
@@ -623,14 +624,23 @@ async function _doBrowseFolders(path, bcId, listId, callbackName) {
 const DEVICE_CACHE_KEY = 'inkjoy_devices_' + (window.INKJOY_ACCOUNT_ID || 0);
 
 function saveDeviceCache(devices) {
-  localStorage.setItem(DEVICE_CACHE_KEY, JSON.stringify({ts: Date.now(), data: devices}));
+  if (!window.inkjoySealJson) return;
+  try {
+    var sealed = window.inkjoySealJson({ts: Date.now(), data: devices});
+    if (sealed) localStorage.setItem(DEVICE_CACHE_KEY, sealed);
+  } catch (_) {}
 }
 
 function loadDeviceCache() {
   try {
-    var cached = JSON.parse(localStorage.getItem(DEVICE_CACHE_KEY) || 'null');
+    var raw = localStorage.getItem(DEVICE_CACHE_KEY);
+    if (!raw) return null;
+    var cached = window.inkjoyOpenJson ? window.inkjoyOpenJson(raw) : null;
     if (cached && cached.data && cached.data.length) return cached.data;
-  } catch(_) {}
+    localStorage.removeItem(DEVICE_CACHE_KEY);
+  } catch (_) {
+    try { localStorage.removeItem(DEVICE_CACHE_KEY); } catch (e) {}
+  }
   return null;
 }
 
@@ -775,7 +785,7 @@ function deviceCardHtml(dev) {
 
 async function loadWizardDevices() {
   var grid = document.getElementById('wizardDeviceGrid');
-  grid.innerHTML = '<div style="color:#999;font-size:13px">Loading...</div>';
+  grid.innerHTML = '<div style="color:#999;font-size:13px">' + t('common.loading') + '</div>';
 
   devicesList = await getDevices();
 
@@ -949,7 +959,7 @@ async function runBinding(scheduleId, btn) {
     btn.style.borderColor = '#4caf50';
     setTimeout(function() { btn.textContent = origText; btn.disabled = false; btn.style.color = ''; btn.style.borderColor = ''; loadAlbums(); }, 2000);
   } else {
-    inkToast(resp.error || 'Failed', true);
+    inkToast(resp.error || t('common.failed'), true);
     btn.textContent = origText;
     btn.disabled = false;
     loadAlbums();

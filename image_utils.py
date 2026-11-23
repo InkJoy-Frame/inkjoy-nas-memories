@@ -1,5 +1,7 @@
 import os
 import logging
+import tempfile
+from io import BytesIO
 from PIL import Image
 
 logger = logging.getLogger(__name__)
@@ -30,25 +32,47 @@ except ImportError:
     logger.warning('rawpy 未安装，RAW 格式（ARW/NEF/DNG 等）不可用')
 
 
-def open_image(path):
-    """打开任意支持格式的图片，返回 PIL Image（像素已加载，文件句柄已释放）。"""
-    ext = os.path.splitext(path)[1].lower()
+def open_image(fileobj, ext):
+    """打开已经读入的图片。不接受路径，避免打开时再跟随软链接。"""
+    if isinstance(fileobj, (str, bytes, os.PathLike)):
+        raise TypeError('refusing to open a filesystem path')
+    ext = (ext or '').lower()
+    fileobj.seek(0)
 
     if ext in RAW_EXTENSIONS:
         if not _rawpy_available:
             raise RuntimeError(f'rawpy 未安装，无法打开 {ext} 文件')
-
-        with _rawpy.imread(path) as raw:
-            rgb = raw.postprocess(use_camera_wb=True)
-
-        return Image.fromarray(rgb)
+        payload = fileobj.read()
+        return _open_raw(payload, ext)
 
     if ext in HEIC_EXTENSIONS and not _heif_available:
         raise RuntimeError(f'pillow-heif 未安装，无法打开 {ext} 文件')
 
-    img = Image.open(path)
+    img = Image.open(fileobj)
     img.load()
     return img
+
+
+def _open_raw(payload, ext):
+    try:
+        with _rawpy.imread(BytesIO(payload)) as raw:
+            rgb = raw.postprocess(use_camera_wb=True)
+        return Image.fromarray(rgb)
+    except Exception:
+        fd, name = tempfile.mkstemp(suffix=ext or '.raw')
+        try:
+            os.write(fd, payload)
+        finally:
+            os.close(fd)
+        try:
+            with _rawpy.imread(name) as raw:
+                rgb = raw.postprocess(use_camera_wb=True)
+            return Image.fromarray(rgb)
+        finally:
+            try:
+                os.remove(name)
+            except OSError:
+                pass
 
 
 def ensure_rgb(img):

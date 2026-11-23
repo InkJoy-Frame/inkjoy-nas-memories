@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="{{ 'zh-CN' if lang == 'zh' else 'en' }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% if kind == 'collected' %}{% if lang == 'zh' %}已收集个人信息清单{% else %}Collected Personal Information List{% endif %}{% else %}{% if lang == 'zh' %}第三方共享个人信息清单{% else %}Third-Party Personal Information Sharing List{% endif %}{% endif %}</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/logo-mark.png') }}">
+  <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body class="legal-body">
+  <main class="legal-wrap">
+    <nav class="legal-nav">
+      <a href="{{ url_for('legal_collected') }}">{% if lang == 'zh' %}已收集个人信息清单{% else %}Collected Personal Information List{% endif %}</a>
+      <a href="{{ url_for('legal_shared') }}">{% if lang == 'zh' %}第三方共享个人信息清单{% else %}Third-Party Sharing List{% endif %}</a>
+      <a href="{{ url_for('login') }}">{% if lang == 'zh' %}返回登录{% else %}Back to sign in{% endif %}</a>
+    </nav>
+
+    {% if kind == 'collected' %}
+      {% if lang == 'zh' %}
+      <h1>已收集个人信息清单</h1>
+      <p class="legal-lead">以下为本应用为实现登录、相框管理和照片推送所收集的个人信息。密码加密保存。中国大陆用户的个人数据存储在中国境内服务器，不进行跨境存储。</p>
+      <div class="legal-table-wrap">
+        <table>
+          <thead>
+            <tr><th>使用场景</th><th>个人信息种类</th><th>使用目的</th><th>收集方式</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>账号登录</td>
+              <td>电子邮箱、密码</td>
+              <td>验证 InkJoy 账号并维持登录，以便定时推送</td>
+              <td>您在登录页主动填写</td>
+            </tr>
+            <tr>
+              <td>相框管理</td>
+              <td>设备标识（device id）、设备名称、分辨率、屏幕方向</td>
+              <td>识别您的相框并按屏幕设置推送</td>
+              <td>登录后从 InkJoy 云服务获取</td>
+            </tr>
+            <tr>
+              <td>照片推送</td>
+              <td>您选择的照片</td>
+              <td>将照片显示到相框</td>
+              <td>您从 NAS 文件夹中选择</td>
+            </tr>
+            <tr>
+              <td>自动播放</td>
+              <td>文件夹路径、播放时间、画面处理方式</td>
+              <td>按您的设置定时推送照片</td>
+              <td>您在应用内设置</td>
+            </tr>
+            <tr>
+              <td>安全与运行</td>
+              <td>登录状态、必要的诊断日志和统计数据</td>
+              <td>维持服务可用并排查故障</td>
+              <td>使用服务时在对应区域的服务器生成</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <h1>Collected Personal Information List</h1>
+      <p class="legal-lead">This list describes personal information collected to sign in, manage frames, and push photos. Passwords are stored encrypted. Personal data of users in mainland China is stored on servers in mainland China and is not stored across borders.</p>
+      <div class="legal-table-wrap">
+        <table>
+          <thead>
+            <tr><th>Scenario</th><th>Personal information</th><th>Purpose</th><th>How it is collected</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Sign-in</td>
+              <td>Email address, password</td>
+              <td>Verify the InkJoy account and keep the session for scheduled pushes</td>
+              <td>Entered by you on the sign-in page</td>
+            </tr>
+            <tr>
+              <td>Frame management</td>
+              <td>Device ID, device name, resolution, orientation</td>
+              <td>Identify your frame and fit the image to the screen</td>
+              <td>Retrieved from the InkJoy cloud after sign-in</td>
+            </tr>
+            <tr>
+              <td>Photo push</td>
+              <td>Photos you select</td>
+              <td>Display the photos on the frame</td>
+              <td>Selected by you from NAS folders</td>
+            </tr>
+            <tr>
+              <td>Auto play</td>
+              <td>Folder path, schedule time, image fit mode</td>
+              <td>Push photos on the schedule you set</td>
+              <td>Set by you in the app</td>
+            </tr>
+            <tr>
+              <td>Security and operation</td>
+              <td>Sign-in state, necessary diagnostic logs and statistics</td>
+              <td>Keep the service available and investigate faults</td>
+              <td>Generated on the server for your region while you use the service</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+    {% else %}
+      {% if lang == 'zh' %}
+      <h1>第三方共享个人信息清单</h1>
+      <p class="legal-lead">本应用未集成第三方统计分析、广告或崩溃收集 SDK，不向第三方共享您的个人信息。</p>
+      <div class="legal-table-wrap">
+        <table>
+          <thead>
+            <tr><th>第三方名称</th><th>第三方类型</th><th>共享的个人信息</th><th>使用目的</th><th>使用场景</th><th>共享方式</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>无</td>
+              <td>—</td>
+              <td>不向第三方共享</td>
+              <td>—</td>
+              <td>—</td>
+              <td>—</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="legal-note">为完成登录、读取相框列表和推送照片，相关信息会发送至 InkJoy 自有云服务。该服务与本应用属于同一运营者，不属于向第三方共享。中国大陆用户的个人数据存储在中国境内服务器；欧洲或美国用户的个人数据存储在欧洲或美国的服务器。</p>
+      <p class="legal-note">界面样式可能由浏览器加载公共网络上的样式文件。该过程不提交邮箱、密码、照片或设备标识。</p>
+      {% else %}
+      <h1>Third-Party Personal Information Sharing List</h1>
+      <p class="legal-lead">This app does not integrate third-party analytics, advertising, or crash-reporting SDKs, and it does not share your personal information with third parties.</p>
+      <div class="legal-table-wrap">
+        <table>
+          <thead>
+            <tr><th>Third party</th><th>Type</th><th>Personal information shared</th><th>Purpose</th><th>Scenario</th><th>Method</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>None</td>
+              <td>—</td>
+              <td>Not shared with third parties</td>
+              <td>—</td>
+              <td>—</td>
+              <td>—</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="legal-note">To sign in, load the frame list, and push photos, the relevant information is sent to InkJoy’s own cloud service. That service is operated together with this app and is not third-party sharing. Personal data of users in mainland China is stored on servers in mainland China. Personal data of users in Europe or the United States is stored on servers in Europe or the United States.</p>
+      <p class="legal-note">The browser may load style files from a public network. That request does not submit your email, password, photos, or device ID.</p>
+      {% endif %}
+    {% endif %}
+  </main>
+</body>
+</html>

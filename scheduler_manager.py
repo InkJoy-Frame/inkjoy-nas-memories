@@ -11,6 +11,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from PIL import Image, ImageOps, ImageFilter
 from image_utils import IMAGE_EXTENSIONS, open_image, ensure_rgb, save_for_display
+from safe_files import MissingPath, UnsafePath, iter_regular_files, open_regular
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +66,8 @@ def add_job(schedule):
             f"at {schedule['schedule_time']} tz={_tz} → next run: {next_run}"
         )
     except Exception as e:
-        logger.error(f"Failed to add job for schedule {schedule['id']}: {e}")
+        from transport_crypto import redact_text
+        logger.error(f"Failed to add job for schedule {schedule['id']}: {redact_text(e)}")
 
 
 def remove_job(schedule_id):
@@ -102,33 +104,32 @@ def get_scheduler_status():
 
 
 def _pick_random_image(schedule_id, folder, max_scan=2000):
-    """
-    从 folder（含所有子文件夹）随机选一张图片，兼顾效率与均匀性。
+    """从允许目录里随机选一张普通文件。软链接不进入抽样，也不打开。"""
+    def skip_dir(name):
+        return name in _SYSTEM_EXCLUDED_DIRS or name.startswith('.')
 
-    策略：reservoir sampling（蓄水池抽样），一次遍历 O(N) 时间、O(1) 空间，
-    不需要把全部路径都存到内存，适合超大目录。
-    超过 max_scan 个文件后仍可正确抽样（每个文件被选中的概率相同）。
-    """
     chosen = None
     count = 0
-    for root, dirs, files in os.walk(folder):
-        dirs[:] = [d for d in dirs if d not in _SYSTEM_EXCLUDED_DIRS and not d.startswith('.')]
-        for fname in files:
-            if os.path.splitext(fname)[1].lower() not in IMAGE_EXTENSIONS:
+    try:
+        candidates = iter_regular_files(_images_dir, folder, skip_dir=skip_dir)
+        for rel in candidates:
+            if os.path.splitext(rel)[1].lower() not in IMAGE_EXTENSIONS:
                 continue
             count += 1
-            # 蓄水池抽样：第 count 个元素以 1/count 概率替换当前选中值
             if random.randint(1, count) == 1:
-                chosen = os.path.join(root, fname)
+                chosen = rel
             if count >= max_scan:
-                # 已足够大，不再继续遍历（提前返回以保证效率）
                 logger.info(
                     f'[schedule:{schedule_id}] scan stopped at {max_scan} files '
-                    f'(folder may contain more), sampled: {chosen}'
+                    '(folder may contain more)'
                 )
                 return chosen
+    except MissingPath:
+        raise Exception(f'文件夹不存在: {folder}')
+    except UnsafePath:
+        raise Exception('非法路径')
 
-    logger.info(f'[schedule:{schedule_id}] scanned {count} image(s) recursively in {folder}')
+    logger.info(f'[schedule:{schedule_id}] scanned {count} image(s)')
     return chosen
 
 
@@ -185,13 +186,13 @@ def execute_schedule(schedule_id):
         logger.error(f'[schedule:{schedule_id}] FAILED: 关联账号不存在')
         return
 
-    lock = _email_locks[account['email']]
+    lock = _email_locks[account['id']]
     if not lock.acquire(blocking=False):
-        logger.info(f'[schedule:{schedule_id}] waiting for {account["email"]} lock…')
+        logger.info(f'[schedule:{schedule_id}] waiting for account {account["id"]} lock…')
         lock.acquire()
 
     try:
-        logger.info(f'[schedule:{schedule_id}] logging in as {account["email"]} → {account["server_url"]}')
+        logger.info(f'[schedule:{schedule_id}] logging in for account {account["id"]}')
         client = InkJoyClient(account['server_url'])
 
         login_data = None
@@ -201,8 +202,9 @@ def execute_schedule(schedule_id):
                 break
             except Exception as _e:
                 if _attempt < 2:
+                    from transport_crypto import redact_text
                     logger.warning(
-                        f'[schedule:{schedule_id}] login attempt {_attempt + 1} failed: {_e}, retrying in 5s…'
+                        f'[schedule:{schedule_id}] login attempt {_attempt + 1} failed: {redact_text(_e)}, retrying in 5s…'
                     )
                     time.sleep(5)
                 else:
@@ -220,20 +222,19 @@ def execute_schedule(schedule_id):
         except Exception as _e:
             logger.warning(f'[schedule:{schedule_id}] could not refresh device orientation: {_e}')
 
-        folder = schedule['folder_path']
-        if not os.path.isabs(folder):
-            folder = os.path.join(_images_dir, folder)
+        image_rel = _pick_random_image(schedule_id, schedule['folder_path'])
+        if not image_rel:
+            raise Exception(f'文件夹（含子文件夹）中没有图片: {schedule["folder_path"]}')
+        logger.info(f'[schedule:{schedule_id}] selected: {image_rel}')
 
-        logger.info(f'[schedule:{schedule_id}] resolved folder: {folder}')
-        if not os.path.isdir(folder):
-            raise Exception(f'文件夹不存在: {folder}')
-
-        image_path = _pick_random_image(schedule_id, folder)
-        if not image_path:
-            raise Exception(f'文件夹（含子文件夹）中没有图片: {folder}')
-        logger.info(f'[schedule:{schedule_id}] selected: {image_path}')
-
-        img = ensure_rgb(open_image(image_path))
+        try:
+            fd = open_regular(_images_dir, image_rel)
+        except UnsafePath:
+            raise Exception('非法路径')
+        except MissingPath:
+            raise Exception('文件不存在')
+        with os.fdopen(fd, 'rb') as fh:
+            img = ensure_rgb(open_image(fh, os.path.splitext(image_rel)[1]))
         device_width = schedule.get('device_width')
         device_height = schedule.get('device_height')
         resize_mode = schedule.get('resize_mode', 'crop')
@@ -260,14 +261,15 @@ def execute_schedule(schedule_id):
         image_data = output.read()
         logger.info(f'[schedule:{schedule_id}] image encoded as {ext}, size={len(image_data)} bytes')
 
-        logger.info(f'[schedule:{schedule_id}] publishing to device {schedule["device_id"]}')
+        logger.info(f'[schedule:{schedule_id}] publishing')
         client.publish_image(schedule['device_id'], image_data, filename=f'image.{ext}')
         update_schedule_run_status(schedule_id, 'success')
         logger.info(f'[schedule:{schedule_id}] DONE OK')
 
     except Exception as e:
-        logger.error(f'[schedule:{schedule_id}] FAILED: {e}', exc_info=True)
-        update_schedule_run_status(schedule_id, 'error', str(e))
+        from transport_crypto import redact_text
+        logger.error(f'[schedule:{schedule_id}] FAILED: {redact_text(e)}')
+        update_schedule_run_status(schedule_id, 'error', redact_text(e))
 
     finally:
         lock.release()
