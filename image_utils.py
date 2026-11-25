@@ -2,7 +2,7 @@ import os
 import logging
 import tempfile
 from io import BytesIO
-from PIL import Image
+from PIL import Image, ImageOps
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +32,36 @@ except ImportError:
     logger.warning('rawpy 未安装，RAW 格式（ARW/NEF/DNG 等）不可用')
 
 
+def apply_exif_orientation(img):
+    """按 EXIF Orientation 把像素转到观看方向。
+
+    相机竖拍常把像素横着存（例如 4240×2400、Orientation 8）。
+    转正后才是后续裁切、毛玻璃和相框旋转要用的画面。
+    方向为 1 或没有标记时原样返回，并清掉方向标记，避免之后再转一次。
+    """
+    try:
+        orientation = img.getexif().get(0x0112, 1)
+    except Exception:
+        logger.warning('读取 EXIF Orientation 失败，按像素原方向继续')
+        return img
+    if orientation in (None, 1):
+        return img
+    try:
+        transposed = ImageOps.exif_transpose(img)
+    except Exception:
+        logger.warning('EXIF Orientation %s 无法应用，按像素原方向继续', orientation)
+        return img
+    if transposed is None:
+        return img
+    logger.info(
+        'EXIF orientation %s applied: %s×%s → %s×%s',
+        orientation, img.width, img.height, transposed.width, transposed.height,
+    )
+    return transposed
+
+
 def open_image(fileobj, ext):
-    """打开已经读入的图片。不接受路径，避免打开时再跟随软链接。"""
+    """打开已经读入的图片，并按 EXIF Orientation 转正。不接受路径，避免打开时再跟随软链接。"""
     if isinstance(fileobj, (str, bytes, os.PathLike)):
         raise TypeError('refusing to open a filesystem path')
     ext = (ext or '').lower()
@@ -43,14 +71,14 @@ def open_image(fileobj, ext):
         if not _rawpy_available:
             raise RuntimeError(f'rawpy 未安装，无法打开 {ext} 文件')
         payload = fileobj.read()
-        return _open_raw(payload, ext)
+        return apply_exif_orientation(_open_raw(payload, ext))
 
     if ext in HEIC_EXTENSIONS and not _heif_available:
         raise RuntimeError(f'pillow-heif 未安装，无法打开 {ext} 文件')
 
     img = Image.open(fileobj)
     img.load()
-    return img
+    return apply_exif_orientation(img)
 
 
 def _open_raw(payload, ext):

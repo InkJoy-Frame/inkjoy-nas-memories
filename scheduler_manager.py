@@ -234,6 +234,7 @@ def execute_schedule(schedule_id):
         except MissingPath:
             raise Exception('文件不存在')
         with os.fdopen(fd, 'rb') as fh:
+            # open_image 已按 EXIF 转正；这里的尺寸是观看方向，后面再适配相框
             img = ensure_rgb(open_image(fh, os.path.splitext(image_rel)[1]))
         device_width = schedule.get('device_width')
         device_height = schedule.get('device_height')

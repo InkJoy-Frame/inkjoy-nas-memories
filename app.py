@@ -12,7 +12,10 @@ from flask import (
     redirect, url_for, jsonify, send_file, Response,
 )
 from PIL import Image, ImageOps
-from image_utils import IMAGE_EXTENSIONS, HEIC_EXTENSIONS, RAW_EXTENSIONS, open_image, ensure_rgb, save_for_display
+from image_utils import (
+    IMAGE_EXTENSIONS, HEIC_EXTENSIONS, RAW_EXTENSIONS,
+    open_image, apply_exif_orientation, ensure_rgb, save_for_display,
+)
 from safe_files import (
     MissingPath, UnsafePath, directory_is_real, ensure_directory,
     iter_regular_files, list_directory, open_regular,
@@ -849,7 +852,7 @@ def api_upload():
             raw = file.read()
             ext = 'png' if file.content_type == 'image/png' else 'jpg'
         else:
-            img = ensure_rgb(Image.open(file.stream))
+            img = ensure_rgb(apply_exif_orientation(Image.open(file.stream)))
 
             dw = request.form.get('device_width', type=int)
             dh = request.form.get('device_height', type=int)
